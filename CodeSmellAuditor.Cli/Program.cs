@@ -5,28 +5,62 @@ using Spectre.Console;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-AnsiConsole.Write(new FigletText("ARCHITECT-1").Color(Color.DeepSkyBlue1));
-AnsiConsole.MarkupLine("[bold grey]Tier 0 Production Audit Sandbox: Live Engine Active[/]\n");
+AnsiConsole.Write(new FigletText("CodeSmellAuditor").Color(Color.DeepSkyBlue1));
+AnsiConsole.MarkupLine("[bold grey]Local C# audit utility[/]\n");
 
-string baseStoragePath = Environment.GetEnvironmentVariable("CODESMELL_STORAGE")
-    ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "WorkstationStorage"));
-string obsidianRulesPath = Path.Combine(baseStoragePath, "Rules");
-string targetsScriptsPath = Path.Combine(baseStoragePath, "Targets");
+string baseStoragePath = ResolveStoragePath();
+string rulesPath = Path.Combine(baseStoragePath, "Rules");
+string targetsPath = Path.Combine(baseStoragePath, "Targets");
 
-if (!Directory.Exists(targetsScriptsPath) || !Directory.Exists(obsidianRulesPath))
+if (!Directory.Exists(targetsPath) || !Directory.Exists(rulesPath))
 {
-    AnsiConsole.MarkupLine("[bold red]FATAL WIRING ERROR:[/] Physical storage subdirectories are missing.");
+    AnsiConsole.MarkupLine("[bold red]ERROR:[/] Rules or Targets folder not found.");
+    AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
+    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE to override, or run from the repo with WorkstationStorage present.[/]");
+    WaitForExit();
     return;
 }
 
-// Composition Root - Wire up dependencies
-IRuleRepository repository = new MarkdownRuleRepository();
-IAiOrchestrator aiService = new OllamaAiOrchestrator("qwen3.5:4b");
+static string ResolveStoragePath()
+{
+    string? configuredPath = Environment.GetEnvironmentVariable("CODESMELL_STORAGE");
+    if (!string.IsNullOrWhiteSpace(configuredPath))
+    {
+        return configuredPath;
+    }
 
-// Instantiate the engine and execute
+    var current = new DirectoryInfo(AppContext.BaseDirectory);
+    while (current is not null)
+    {
+        string candidate = Path.Combine(current.FullName, "WorkstationStorage");
+        if (Directory.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        current = current.Parent;
+    }
+
+    return Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "WorkstationStorage"));
+}
+
+static void WaitForExit()
+{
+    AnsiConsole.MarkupLine("[bold cyan]Press [[ENTER]] to exit...[/]");
+    Console.ReadLine();
+}
+
+var auditConfig = new AuditConfiguration(
+    ModelName: Environment.GetEnvironmentVariable("CODESMELL_MODEL") ?? "qwen3.5:4b",
+    NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
+    NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
+
+IRuleRepository repository = new MarkdownRuleRepository();
+IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
+
 var engine = new AuditEngine(repository, aiService);
-await engine.RunAsync(obsidianRulesPath, targetsScriptsPath);
+await engine.RunAsync(rulesPath, targetsPath);
 
 AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");
-AnsiConsole.MarkupLine("[bold cyan]Press [[ENTER]] to terminate structural tracking workstation...[/]");
-Console.ReadLine();
+WaitForExit();

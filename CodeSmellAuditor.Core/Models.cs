@@ -14,6 +14,7 @@ public class OllamaChatRequest
 {
     public string Model { get; set; } = string.Empty;
     public bool Stream { get; set; }
+    public bool Think { get; set; }
     public List<OllamaMessage> Messages { get; set; } = new();
     public Dictionary<string, object>? Options { get; set; }
 }

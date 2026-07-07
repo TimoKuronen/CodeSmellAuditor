@@ -1,35 +1,23 @@
 ---
-description: Universal engineering standard — precedence and core MUSTs (all projects)
+description: Core engineering standard for C# audit checks
 alwaysApply: true
 ---
 
 # Engineering standard (tier 0)
 
-Full manual: `docs/ENGINEERING_STANDARD.md`
-
-## Precedence (highest wins)
-
-1. `docs/ENGINEERING_STANDARD.md` — universal
-2. `docs/UNITY_PLATFORM_STANDARD.md` — Unity only
-3. `<Project>/AGENTS.md` — project overlay
-4. Product docs (GDD, mechanics) — **what** to build, not **how** to structure code
-
-When tiers conflict, higher tier wins. Document exceptions per ENGINEERING_STANDARD §10.
-
 ## MUST (all projects)
 
-- **80% default:** domain/control flow = plain classes, explicit deps, testable. **20%** = hot paths only, evidence-based (profile/budget).
-- **State:** one writer per concern; commands via services; notifications via events/bus — subscribers do not change command outcomes.
-- **Rule of Three** for abstractions — except interfaces for DI, tests, or 2+ real implementations (tier 0 §4).
-- **Orchestrators** depend on abstractions for time, random, persistence, external IO — concretes at composition root only.
-- **Tests:** domain rules get Edit Mode/unit tests; `{TypeUnderTest}Tests`; AAA layout.
-- **Production:** no secrets in repo; validate user/external input; fail fast on **wiring** only (platform pack defines wiring vs runtime).
-- **Readability:** one type per file; match local style; no dead commented code.
+- Domain/control flow uses plain classes, explicit dependencies, testable design
+- State: one writer per concern; commands via services; notifications via events
+- Rule of Three for abstractions; interfaces allowed for DI, tests, or 2+ implementations
+- Orchestrators depend on abstractions for time, random, persistence, external IO
+- Tests: domain rules get unit tests; Arrange-Act-Assert layout
+- Production: no secrets in repo; validate user input; fail fast on wiring errors
+- Readability: one type per file; match local style; no dead commented code
 
-## Agent workflow
+## Audit focus
 
-- Open the project's `.code-workspace` when available.
-- Read `<Project>/AGENTS.md` before structural changes.
-- User opt-out in message (`prototype`, `throwaway`, `quick fix only`, `skip docs`) relaxes non-safety rules; say so in summary.
-
-Unity C#/WebGL detail: `docs/UNITY_PLATFORM_STANDARD.md` and sibling `.mdc` rules.
+- Constructor injection vs service locator
+- Static mutable state in domain logic
+- Number of dependencies per class (flag if over 5)
+- Separation of concerns between orchestration and data access

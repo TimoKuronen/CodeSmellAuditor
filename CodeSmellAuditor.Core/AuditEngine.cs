@@ -16,7 +16,7 @@ public class AuditEngine
 
     public async Task RunAsync(string rulesPath, string targetsPath)
     {
-        string basePath = Path.GetDirectoryName(rulesPath.TrimEnd(Path.DirectorySeparatorChar)) 
+        string basePath = Path.GetDirectoryName(rulesPath.TrimEnd(Path.DirectorySeparatorChar))
                           ?? throw new InvalidOperationException("Invalid base storage path.");
         string reportsDirectoryPath = Path.Combine(basePath, "Reports");
 
@@ -26,18 +26,18 @@ public class AuditEngine
         }
 
         var architecturalRules = (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
-        
-        AnsiConsole.MarkupLine($"[bold green]Loaded {architecturalRules.Count} System Governance Rules successfully.[/]");
+
+        AnsiConsole.MarkupLine($"[bold green]Loaded {architecturalRules.Count} audit rules.[/]");
         foreach (var rule in architecturalRules)
         {
-            AnsiConsole.MarkupLine($" [grey]└── Ingested Document:[/] [cyan]{rule.Name}[/]");
+            AnsiConsole.MarkupLine($" [grey]└──[/] [cyan]{rule.Name}[/]");
         }
         AnsiConsole.WriteLine();
 
         var targetFiles = Directory.GetFiles(targetsPath, "*.cs");
         if (targetFiles.Length == 0)
         {
-            AnsiConsole.MarkupLine("[bold yellow]WARNING:[/] No physical C# target scripts discovered.");
+            AnsiConsole.MarkupLine("[bold yellow]WARNING:[/] No C# target files found.");
             return;
         }
 
@@ -48,49 +48,49 @@ public class AuditEngine
             SourceFile currentTarget = new(filePath, sourceCodeText);
 
             AnsiConsole.WriteLine();
-            
+
             AuditReport? auditReport = null;
 
-            // 1. Run the spinner ONLY for the initial pre-fill ingestion phase
             await AnsiConsole.Status()
                 .Spinner(Spinner.Known.Dots2)
                 .SpinnerStyle(Style.Parse("yellow bold"))
-                .StartAsync($"Ingesting [[{fileName}]] parameters into neural layer...", async ctx =>
+                .StartAsync($"Auditing [[{fileName}]]...", async ctx =>
                 {
                     bool headingPrinted = false;
 
-                    // 2. Trigger async call, passing our custom live terminal printing delegate
                     auditReport = await _aiService.AnalyzeCodeAsync(currentTarget, architecturalRules, token =>
                     {
-                        // The very first token breaks out of the spinner display context
                         if (!headingPrinted)
                         {
-                            ctx.Status("Streaming Critique Response Engine...");
-                            AnsiConsole.Write(new Rule($"[yellow]LIVE AUDIT CRITIQUE: {fileName}[/]").LeftJustified());
+                            ctx.Status("Streaming audit response...");
+                            AnsiConsole.Write(new Rule($"[yellow]AUDIT: {fileName}[/]").LeftJustified());
                             AnsiConsole.WriteLine();
                             headingPrinted = true;
                         }
 
-                        // Stream the token directly onto the active console row
                         Console.Write(token);
                     });
                 });
 
-            // 3. Close the display segment layout wrapper cleanly
             AnsiConsole.WriteLine();
             AnsiConsole.Write(new Rule().RuleStyle("grey"));
             AnsiConsole.WriteLine();
 
             if (auditReport != null)
             {
-                // 4. Record the persistent file copy for long-term Obsidian logging tracking
-                string writtenFilePath = await SaveReportToFileSystemAsync(reportsDirectoryPath, fileName, auditReport.MarkdownCritique);
-                AnsiConsole.MarkupLine($"[grey]└── Persistent ledger record generated:[/] [underline cyan]{writtenFilePath}[/]\n");
+                string writtenFilePath = await SaveReportToFileSystemAsync(
+                    reportsDirectoryPath,
+                    fileName,
+                    auditReport.MarkdownCritique);
+                AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{writtenFilePath}[/]\n");
             }
         }
     }
 
-    private async Task<string> SaveReportToFileSystemAsync(string targetFolder, string targetFileName, string markdownContent)
+    private async Task<string> SaveReportToFileSystemAsync(
+        string targetFolder,
+        string targetFileName,
+        string markdownContent)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string cleanFileName = $"{timestamp}_{Path.GetFileNameWithoutExtension(targetFileName)}_Critique.md";
@@ -100,7 +100,7 @@ public class AuditEngine
         documentBuilder.AppendLine("---");
         documentBuilder.AppendLine($"TargetFile: {targetFileName}");
         documentBuilder.AppendLine($"AuditDate: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        documentBuilder.AppendLine("Tags: [architect-1, code-smell-audit]");
+        documentBuilder.AppendLine("Tags: [code-smell-audit]");
         documentBuilder.AppendLine("---");
         documentBuilder.AppendLine();
         documentBuilder.AppendLine(markdownContent);

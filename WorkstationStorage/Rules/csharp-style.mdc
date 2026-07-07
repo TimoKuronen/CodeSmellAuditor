@@ -1,29 +1,24 @@
 ---
-description: WebCasuals C# and Unity conventions
+description: C# style conventions for audit checks
 globs: "**/*.cs"
 alwaysApply: true
 ---
 
-# Unity C# style (tier 1)
-
-Tier 0: `docs/ENGINEERING_STANDARD.md` · Full Unity rules: `docs/UNITY_PLATFORM_STANDARD.md` §5–8
+# C# style (tier 1)
 
 ## Quick rules
 
-- Prefer `[SerializeField] private` on MonoBehaviours; ScriptableObject configs use public read-only data fields (see full guide)
-- ScriptableObject assets are never mutated at runtime; copy values locally when runtime state is needed
-- Private fields: `camelCase` (no leading underscore); types/methods/properties: `PascalCase`
-- Unity callbacks (`Awake`, `Update`, `FixedUpdate`, etc.) delegate to named methods; exception: trivial `timer += Time.deltaTime` only
-- Member order: setup or lifecycle first, public API next, private helpers last; cleanup or teardown at the bottom
-- Namespace matches assembly: `WebCasuals` (shared Framework), title namespace under `Assets/Game/` (e.g. `GhoulSmasher`)
-- Framework must not reference Game
-- Input System only; pointer + mouse + keyboard + touch
-- No unbounded `Instantiate` in `Update`; pool or cap
-- VContainer for DI; no Extenject in same project
-- SRDebugger and heavy debug: development builds only
-- WebGL: avoid hot-path allocations and unsupported native plugins
-- Fail fast on missing refs; no silent null guards (see `fail-fast-no-null-guards.mdc`)
-- Do not create enum-only files; nest enums in the owning type (e.g. `EnemyController.ZombieType`, config ScriptableObject, `LoadingProgressService.Stage`) — not a standalone `ZombieType.cs`
-- UI text: TextMeshPro (`TMP_Text` / `TextMeshProUGUI`) only; use `StringBuilder` for runtime string composition
+- Private fields: camelCase; types/methods/properties: PascalCase
+- One primary type per file; file name matches type name
+- Functions do one thing at one abstraction level
+- Prefer explicit types over excessive var where clarity suffers
+- Delete dead code; do not comment it out
+- No static mutable globals in domain logic
+- Interfaces at orchestration boundaries for replaceable implementations
 
-Read project `AGENTS.md` before structural changes.
+## Audit focus
+
+- Naming consistency
+- Class size and responsibility scope
+- Null handling at wiring boundaries
+- Comment quality (explain why, not what)

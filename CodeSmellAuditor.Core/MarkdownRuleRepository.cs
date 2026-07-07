@@ -6,27 +6,44 @@ public class MarkdownRuleRepository : IRuleRepository
     {
         if (!Directory.Exists(rulesFolderPath))
         {
-            throw new DirectoryNotFoundException($"Architect Guard: Rules directory not found: {rulesFolderPath}");
+            throw new DirectoryNotFoundException($"Rules directory not found: {rulesFolderPath}");
         }
 
         var loadedRules = new List<AuditRule>();
-        
+
         var ruleFiles = Directory.EnumerateFiles(rulesFolderPath, "*.*")
-            .Where(file => file.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || 
-                           file.EndsWith(".mdc", StringComparison.OrdinalIgnoreCase));
+            .Where(file => file.EndsWith(".mdc", StringComparison.OrdinalIgnoreCase));
 
         foreach (var filePath in ruleFiles)
         {
             var content = await File.ReadAllTextAsync(filePath);
-            if (string.IsNullOrWhiteSpace(content)) continue;
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
 
             string ruleName = Path.GetFileName(filePath);
-            string guidelineBody = content.Trim();
-            
-            // Fixed: Pass exactly 2 arguments to match the streamlined record definition
+            string guidelineBody = StripFrontMatter(content.Trim());
+
             loadedRules.Add(new AuditRule(ruleName, guidelineBody));
         }
 
         return loadedRules;
+    }
+
+    public static string StripFrontMatter(string content)
+    {
+        if (!content.StartsWith("---"))
+        {
+            return content;
+        }
+
+        int endIndex = content.IndexOf("---", 3, StringComparison.Ordinal);
+        if (endIndex < 0)
+        {
+            return content;
+        }
+
+        return content[(endIndex + 3)..].Trim();
     }
 }
