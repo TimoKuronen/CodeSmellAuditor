@@ -1,89 +1,36 @@
 # CodeSmellAuditor
 
-Local-first CLI that audits C# source files against markdown governance rules using a local Ollama model. Streams critique to the terminal and saves timestamped markdown reports.
+CLI tool that runs a local Ollama model against C# source files and checks them against a set of markdown governance rules. Streams the critique live and saves a timestamped report.
 
-Demonstrates .NET layering, interface boundaries, Ollama integration, and markdown rule packs.
+Built as part of learning .NET architecture while exploring agent-assisted workflows — the irony of using AI to audit AI-generated code is not lost on me.
 
-## Features
-
-- Load compact governance rules from `.mdc` audit packs
-- Batch audit all `.cs` files in a targets folder
-- Stream AI critique live to the terminal via Spectre.Console
-- Save timestamped markdown reports with YAML front matter
-- Interface-driven design: swap rule storage or AI backend without changing the audit engine
-
-## Prerequisites
+## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Ollama](https://ollama.com/) running locally on `http://localhost:11434`
-- A pulled model (default: `qwen3.5:4b`)
+- [Ollama](https://ollama.com/) running locally with a pulled model (default: `qwen3.5:4b`)
 
-```powershell
-ollama pull qwen3.5:4b
-ollama serve
-```
-
-## Quick start
+## Run
 
 ```powershell
 dotnet run --project CodeSmellAuditor.Cli
 ```
 
-## Usage
+Drop `.cs` files into `WorkstationStorage/Targets/`, governance rules as `.mdc` into `WorkstationStorage/Rules/`. Reports land in `WorkstationStorage/Reports/`.
 
-Default storage layout (relative to the solution):
+Override the storage root or model via `CODESMELL_STORAGE` and `CODESMELL_MODEL` env vars.
 
-```
-WorkstationStorage/
-  Rules/      Compact audit rule files (.mdc)
-  Targets/    C# files to audit
-  Reports/    Generated critique reports (gitignored)
-```
+## How it works
 
-Override the storage path with the `CODESMELL_STORAGE` environment variable:
+`CodeSmellAuditor.Core` loads compact rule files, builds a budgeted prompt, and streams the model response token by token to the terminal. Each audit saves a markdown report with YAML front matter.
 
-```powershell
-$env:CODESMELL_STORAGE = "C:\path\to\your\storage"
-dotnet run --project CodeSmellAuditor.Cli
-```
+More detail: [architecture](docs/architecture.md) · [known limitations](docs/known-limitations.md)
 
-Optional configuration via environment variables:
+## What''s next
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `CODESMELL_STORAGE` | `WorkstationStorage` next to solution | Rules, targets, reports root |
-| `CODESMELL_MODEL` | `qwen3.5:4b` | Ollama model name |
-| `CODESMELL_NUM_CTX` | `8192` | Context window size |
-| `CODESMELL_NUM_PREDICT` | `1200` | Max output tokens |
-
-## Sample output
-
-Reports are saved to `WorkstationStorage/Reports/` with names like `20260707_120000_SampleService_Critique.md`.
-
-See [docs/sample-report-excerpt.md](docs/sample-report-excerpt.md) for format reference.
-
-## Architecture
-
-```
-CodeSmellAuditor.Cli          Composition root, terminal UX
-CodeSmellAuditor.Core         Audit engine, interfaces, Ollama integration
-WorkstationStorage/           Local rules, targets, generated reports
-```
-
-Details: [docs/architecture.md](docs/architecture.md)
-
-## Testing
-
-```powershell
-dotnet test
-```
-
-Details: [docs/testing.md](docs/testing.md)
-
-## Known limitations
-
-See [docs/known-limitations.md](docs/known-limitations.md).
+- CLI args for model and path instead of env vars
+- Roslyn-based deterministic pre-checks before the AI pass
+- Exit codes for CI use
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT
