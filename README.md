@@ -25,7 +25,7 @@ Override the storage root or model via `CODESMELL_STORAGE` and `CODESMELL_MODEL`
 
 More detail: [architecture](docs/architecture.md) · [known limitations](docs/known-limitations.md)
 
-## What''s next
+## What's next
 
 - CLI args for model and path instead of env vars
 - Roslyn-based deterministic pre-checks before the AI pass
