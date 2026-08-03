@@ -31,3 +31,4 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+/docs/local

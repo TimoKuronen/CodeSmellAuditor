@@ -1,43 +1,38 @@
 # Known Limitations
 
+## Product model
+
+- **Not static analysis.** The tool sends plain source text to an LLM; it does not use Roslyn or deterministic rule evaluation.
+- Model output is non-deterministic; the same file may produce different critiques between runs.
+- Pass/fail is parsed from a `Status:` line in the report body. The engine records verdicts in `AuditRunResult`, but the CLI does not yet print a batch summary or set exit codes.
+
 ## AI dependency
 
-- Requires Ollama running locally; no cloud fallback in current version
-- Model output is non-deterministic; same file may produce different critiques
-- Reasoning models may produce verbose output; bounded report format mitigates this
-- Pass/fail is parsed from a `Status:` line in the report body
+- Requires Ollama running locally; no cloud fallback in the current version.
+- Reasoning models may produce verbose output; a bounded report template and `num_predict` cap mitigate this.
 
 ## Token budget
 
-- Full rule manuals plus full source files plus verbose output can exceed the model context window
-- Mitigation: compact `.mdc` rules are loaded at runtime; reference `.md` manuals are excluded
-- Prompt budgeting rejects oversized audits before calling Ollama
-- Output is capped via `num_predict` (default 1200) and a strict report template
+- Full rule manuals plus full source files can exceed the model context window.
+- Mitigation: compact `.mdc` rules at runtime; reference `.md` manuals are excluded from prompts.
+- `AuditPromptBuilder.ValidateBudget` rejects oversized inputs before calling Ollama.
+- Large single files may still exceed context even with compact rules.
 
 ## Scope
 
-- Audits individual `.cs` files, not full solution context or cross-file dependencies
-- No Roslyn semantic analysis; relies on LLM interpretation of source text
-- Rules are loaded as plain markdown; no rule versioning or conflict resolution
-
-## Portability
-
-- Model and token budgets are configurable via environment variables
-- Large files may still exceed context even with compact rules
+- Audits individual `.cs` files, not full solution context or cross-file dependencies.
+- Rules are plain markdown; no versioning or conflict resolution.
 
 ## UX
 
-- CLI waits for Enter before exit (interactive mode)
-- No exit codes for CI integration yet
+- CLI waits for Enter before exit (interactive-only).
+- Configuration is environment-variable based; no CLI argument parsing yet.
 
 ## Security
 
-- Sends full source code to local Ollama instance only (not cloud by default)
-- No secret scanning in target files before audit
+- Sends full source code to the local Ollama instance only (not cloud by default).
+- No secret scanning in target files before audit.
 
-## Planned improvements
+## Future implementation
 
-1. CLI arguments for model, storage path, and non-interactive mode
-2. Deterministic pre-checks before AI critique
-3. Structured report schema (JSON + markdown export)
-4. Exit code 1 when any file fails audit
+See [README](../README.md#future-implementation) for planned CLI args, exit codes, batch summary display, and optional Roslyn pre-checks.

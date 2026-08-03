@@ -8,10 +8,12 @@ CodeSmellAuditor follows a simple layered design with explicit interfaces so the
 flowchart TB
     subgraph cli [CodeSmellAuditor.Cli]
         Program[Program.cs composition root]
+        Reporter[SpectreAuditProgressReporter]
     end
 
     subgraph core [CodeSmellAuditor.Core]
         Engine[AuditEngine]
+        Progress[IAuditProgressReporter]
         Rules[IRuleRepository]
         AI[IAiOrchestrator]
         PromptBuilder[AuditPromptBuilder]
@@ -31,6 +33,9 @@ flowchart TB
     Program --> Engine
     Program --> Rules
     Program --> AI
+    Program --> Reporter
+    Engine --> Progress
+    Reporter -.implements.-> Progress
     Engine --> Rules
     Engine --> AI
     AI --> PromptBuilder
