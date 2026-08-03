@@ -1,5 +1,6 @@
 ﻿
 using System.Text;
+using CodeSmellAuditor.Cli;
 using CodeSmellAuditor.Core;
 using Spectre.Console;
 
@@ -58,8 +59,9 @@ var auditConfig = new AuditConfiguration(
 
 IRuleRepository repository = new MarkdownRuleRepository();
 IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
+IAuditProgressReporter progressReporter = new SpectreAuditProgressReporter();
 
-var engine = new AuditEngine(repository, aiService);
+var engine = new AuditEngine(repository, aiService, progressReporter);
 await engine.RunAsync(rulesPath, targetsPath);
 
 AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");

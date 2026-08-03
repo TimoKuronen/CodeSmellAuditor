@@ -44,7 +44,7 @@ flowchart TB
 
 | Project | Responsibility |
 |---------|---------------|
-| CodeSmellAuditor.Cli | Composition root, Spectre.Console UX, path configuration |
+| CodeSmellAuditor.Cli | Composition root, Spectre.Console UX via `SpectreAuditProgressReporter`, path configuration |
 | CodeSmellAuditor.Core | AuditEngine orchestration, interfaces, Ollama HTTP streaming, prompt budgeting |
 
 ## Key interfaces
@@ -67,9 +67,14 @@ Coordinates the batch workflow:
 
 1. Load compact rules
 2. Enumerate `.cs` targets
-3. Build prompt and check budget
+3. Delegate per-file audit presentation to `IAuditProgressReporter`
 4. Call AI orchestrator with streaming callback
 5. Parse status and persist markdown report with YAML front matter
+6. Return `AuditRunResult` with per-file pass/fail metadata
+
+### IAuditProgressReporter
+
+Presentation-neutral hook for workflow progress. `SpectreAuditProgressReporter` in Cli renders spinners, streaming output, and saved-report messages. `NullAuditProgressReporter` supports headless execution and testing without a terminal UI.
 
 ## Design decisions
 

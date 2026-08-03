@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using Spectre.Console;
 
 namespace CodeSmellAuditor.Core;
 
@@ -7,14 +6,19 @@ public class AuditEngine
 {
     private readonly IRuleRepository _ruleRepository;
     private readonly IAiOrchestrator _aiService;
+    private readonly IAuditProgressReporter _progressReporter;
 
-    public AuditEngine(IRuleRepository ruleRepository, IAiOrchestrator aiService)
+    public AuditEngine(
+        IRuleRepository ruleRepository,
+        IAiOrchestrator aiService,
+        IAuditProgressReporter progressReporter)
     {
         _ruleRepository = ruleRepository;
         _aiService = aiService;
+        _progressReporter = progressReporter;
     }
 
-    public async Task RunAsync(string rulesPath, string targetsPath)
+    public async Task<AuditRunResult> RunAsync(string rulesPath, string targetsPath)
     {
         string basePath = Path.GetDirectoryName(rulesPath.TrimEnd(Path.DirectorySeparatorChar))
                           ?? throw new InvalidOperationException("Invalid base storage path.");
@@ -26,20 +30,16 @@ public class AuditEngine
         }
 
         var architecturalRules = (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
-
-        AnsiConsole.MarkupLine($"[bold green]Loaded {architecturalRules.Count} audit rules.[/]");
-        foreach (var rule in architecturalRules)
-        {
-            AnsiConsole.MarkupLine($" [grey]└──[/] [cyan]{rule.Name}[/]");
-        }
-        AnsiConsole.WriteLine();
+        _progressReporter.RulesLoaded(architecturalRules);
 
         var targetFiles = Directory.GetFiles(targetsPath, "*.cs");
         if (targetFiles.Length == 0)
         {
-            AnsiConsole.MarkupLine("[bold yellow]WARNING:[/] No C# target files found.");
-            return;
+            _progressReporter.NoTargetsFound();
+            return new AuditRunResult(Array.Empty<FileAuditResult>());
         }
+
+        var fileResults = new List<FileAuditResult>();
 
         foreach (var filePath in targetFiles)
         {
@@ -47,47 +47,27 @@ public class AuditEngine
             string sourceCodeText = await File.ReadAllTextAsync(filePath);
             SourceFile currentTarget = new(filePath, sourceCodeText);
 
-            AnsiConsole.WriteLine();
+            AuditReport auditReport = await _progressReporter.RunFileAuditAsync(
+                fileName,
+                onTokenReceived => _aiService.AnalyzeCodeAsync(
+                    currentTarget,
+                    architecturalRules,
+                    onTokenReceived));
 
-            AuditReport? auditReport = null;
+            string writtenFilePath = await SaveReportToFileSystemAsync(
+                reportsDirectoryPath,
+                fileName,
+                auditReport.MarkdownCritique);
 
-            await AnsiConsole.Status()
-                .Spinner(Spinner.Known.Dots2)
-                .SpinnerStyle(Style.Parse("yellow bold"))
-                .StartAsync($"Auditing [[{fileName}]]...", async ctx =>
-                {
-                    bool headingPrinted = false;
+            _progressReporter.ReportSaved(fileName, writtenFilePath);
 
-                    auditReport = await _aiService.AnalyzeCodeAsync(currentTarget, architecturalRules, token =>
-                    {
-                        if (!headingPrinted)
-                        {
-                            ctx.Status("Streaming audit response...");
-                            AnsiConsole.Write(new Rule($"[yellow]AUDIT: {fileName}[/]").LeftJustified());
-                            AnsiConsole.WriteLine();
-                            headingPrinted = true;
-                        }
-
-                        Console.Write(token);
-                    });
-                });
-
-            AnsiConsole.WriteLine();
-            AnsiConsole.Write(new Rule().RuleStyle("grey"));
-            AnsiConsole.WriteLine();
-
-            if (auditReport != null)
-            {
-                string writtenFilePath = await SaveReportToFileSystemAsync(
-                    reportsDirectoryPath,
-                    fileName,
-                    auditReport.MarkdownCritique);
-                AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{writtenFilePath}[/]\n");
-            }
+            fileResults.Add(new FileAuditResult(fileName, writtenFilePath, auditReport.HasPassed));
         }
+
+        return new AuditRunResult(fileResults);
     }
 
-    private async Task<string> SaveReportToFileSystemAsync(
+    private static async Task<string> SaveReportToFileSystemAsync(
         string targetFolder,
         string targetFileName,
         string markdownContent)
