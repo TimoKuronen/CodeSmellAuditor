@@ -9,16 +9,43 @@ Console.OutputEncoding = Encoding.UTF8;
 AnsiConsole.Write(new FigletText("CodeSmellAuditor").Color(Color.DeepSkyBlue1));
 AnsiConsole.MarkupLine("[bold grey]Local C# audit utility[/]\n");
 
+CliArgs cliArgs;
+try
+{
+    cliArgs = CliArgs.Parse(args);
+}
+catch (ArgumentException ex)
+{
+    AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
+    Environment.ExitCode = 1;
+    return;
+}
+
 string baseStoragePath = ResolveStoragePath();
 string rulesPath = Path.Combine(baseStoragePath, "Rules");
 string targetsPath = Path.Combine(baseStoragePath, "Targets");
 
-if (!Directory.Exists(targetsPath) || !Directory.Exists(rulesPath))
+if (!Directory.Exists(rulesPath))
 {
-    AnsiConsole.MarkupLine("[bold red]ERROR:[/] Rules or Targets folder not found.");
+    AnsiConsole.MarkupLine("[bold red]ERROR:[/] Rules folder not found.");
+    AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
+    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE to override, or run from the repo with WorkstationStorage present.[/]");
+    if (cliArgs.Mode == CliMode.Batch)
+    {
+        WaitForExit();
+    }
+
+    Environment.ExitCode = 1;
+    return;
+}
+
+if (cliArgs.Mode == CliMode.Batch && !Directory.Exists(targetsPath))
+{
+    AnsiConsole.MarkupLine("[bold red]ERROR:[/] Targets folder not found.");
     AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
     AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE to override, or run from the repo with WorkstationStorage present.[/]");
     WaitForExit();
+    Environment.ExitCode = 1;
     return;
 }
 
@@ -62,7 +89,21 @@ IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
 var engine = new AuditEngine(repository, aiService);
 var host = new CliAuditHost(engine);
 
-await host.RunAsync(rulesPath, targetsPath);
+if (cliArgs.Mode == CliMode.Batch)
+{
+    await host.RunAsync(rulesPath, targetsPath);
+    AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");
+    WaitForExit();
+    return;
+}
 
-AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");
-WaitForExit();
+try
+{
+    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPath!);
+    Environment.ExitCode = sniffResult.AllPassed ? 0 : 1;
+}
+catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)
+{
+    AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
+    Environment.ExitCode = 1;
+}

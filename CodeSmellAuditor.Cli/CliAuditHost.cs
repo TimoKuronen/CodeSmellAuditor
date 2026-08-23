@@ -46,6 +46,38 @@ public sealed class CliAuditHost
         return new AuditRunResult(fileResults);
     }
 
+    /// <summary>
+    /// Audits one external .cs file in place. Rules and reports stay under auditor storage.
+    /// </summary>
+    public async Task<AuditRunResult> RunSniffAsync(string rulesPath, string filePath)
+    {
+        string absolutePath = Path.GetFullPath(filePath);
+        if (!File.Exists(absolutePath))
+        {
+            throw new FileNotFoundException($"sniff target not found: {absolutePath}", absolutePath);
+        }
+
+        if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"sniff path must be a .cs file: {absolutePath}");
+        }
+
+        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath);
+        PrintRulesLoaded(rules);
+
+        string reportsDirectoryPath = AuditEngine.ResolveReportsDirectory(rulesPath);
+        string fileName = Path.GetFileName(absolutePath);
+
+        FileAuditResult result = await AuditFileWithStatusAsync(
+            absolutePath,
+            fileName,
+            rules,
+            reportsDirectoryPath);
+
+        AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
+        return new AuditRunResult(new[] { result });
+    }
+
     private async Task<FileAuditResult> AuditFileWithStatusAsync(
         string filePath,
         string fileName,

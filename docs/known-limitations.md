@@ -4,7 +4,7 @@
 
 - **Not static analysis.** The tool sends plain source text to an LLM; it does not use Roslyn or deterministic rule evaluation.
 - Model output is non-deterministic; the same file may produce different critiques between runs.
-- Pass/fail is parsed from a `Status:` line in the report body. `CliAuditHost` / `RunBatchAsync` return `AuditRunResult`, but the CLI does not yet print a batch summary or set exit codes.
+- Pass/fail is parsed from a `Status:` line in the report body. `sniff` sets process exit codes from that result; interactive batch still does not print a summary or set exit codes.
 
 ## AI dependency
 
@@ -25,8 +25,8 @@
 
 ## UX
 
-- CLI waits for Enter before exit (interactive-only).
-- Configuration is environment-variable based; no CLI argument parsing yet.
+- Interactive batch waits for Enter before exit; `sniff` exits immediately with a pass/fail exit code.
+- Configuration is mostly environment-variable based; CLI args currently cover `sniff <path>` only (not `--model` / `--storage`).
 
 ## Security
 
@@ -35,4 +35,4 @@
 
 ## Future implementation
 
-See [README](../README.md#future-implementation) for planned CLI args, exit codes, batch summary display, and optional Roslyn pre-checks.
+See [README](../README.md#future-implementation) for fuller CLI args, batch summary display, directory sniff, and optional Roslyn pre-checks.

@@ -17,11 +17,19 @@ Built while learning .NET architecture and agent-assisted workflows — the iron
 
 ## Run
 
+Batch (files in Targets):
+
 ```powershell
 dotnet run --project CodeSmellAuditor.Cli
 ```
 
-Drop `.cs` files into `WorkstationStorage/Targets/`, governance rules as `.mdc` into `WorkstationStorage/Rules/`. Reports land in `WorkstationStorage/Reports/`.
+Sniff a file in place (any path; no Targets copy):
+
+```powershell
+dotnet run --project CodeSmellAuditor.Cli -- sniff path\to\Program.cs
+```
+
+Drop `.cs` files into `WorkstationStorage/Targets/` for batch mode. Governance rules as `.mdc` go in `WorkstationStorage/Rules/`. Reports land in `WorkstationStorage/Reports/` for both batch and sniff. Sniff does not wait for Enter; exit code is `0` if the audit passed, `1` if review is required or the run failed.
 
 ## Configuration
 
@@ -36,9 +44,9 @@ Environment variables (all optional):
 
 ## How it works
 
-1. `Program.cs` (composition root) resolves paths and wires `MarkdownRuleRepository`, `OllamaAiOrchestrator`, `AuditEngine`, and `CliAuditHost`.
+1. `Program.cs` (composition root) parses args (batch vs `sniff`), resolves paths, and wires `MarkdownRuleRepository`, `OllamaAiOrchestrator`, `AuditEngine`, and `CliAuditHost`.
 2. Core exposes a file-level API: load rules, audit one `.cs` file (budgeted prompt + Ollama stream), save a markdown report.
-3. `CliAuditHost` owns the interactive batch loop and wraps each file audit in Spectre Status (spinner until first token, then streamed critique).
+3. `CliAuditHost` owns Status wrapping for both Targets batch and path-based sniff.
 4. Pass/fail is parsed from a `Status:` line in the report body.
 
 Sample report format: [docs/sample-report-excerpt.md](docs/sample-report-excerpt.md)
@@ -56,15 +64,16 @@ Unit tests cover rule loading, prompt building, pass/fail parsing, and `AuditEng
 ## Current scope
 
 - Single-file `.cs` audits against local markdown rule packs
+- Path-based `sniff` entry for auditing a file where it already lives
 - Local Ollama only (privacy-preserving; no cloud API)
 - Interactive CLI with streaming terminal output
 - Layered Core / Cli / Tests solution with constructor injection at the composition root
 
 ## Future implementation
 
-- CLI arguments (`--model`, `--storage`, `--non-interactive`) instead of env vars only
-- Non-zero exit codes when any audit requires review
-- Surface batch pass/fail summary in the CLI (engine already returns `AuditRunResult`)
+- Full CLI arguments (`--model`, `--storage`, `--non-interactive`) beyond the `sniff` path entry
+- Surface batch pass/fail summary in the CLI (engine already returns `AuditRunResult`; sniff already sets exit codes)
+- Directory sniff (audit all `*.cs` under a folder)
 - Roslyn-based deterministic pre-checks before the LLM pass
 - Cloud model backend via a second `IAiOrchestrator` implementation
 

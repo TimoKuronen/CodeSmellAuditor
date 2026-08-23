@@ -98,9 +98,18 @@ Cli -> Core -> (filesystem, HttpClient)
 
 Core does not reference Cli. External AI and file I/O are behind interfaces or isolated in orchestrator implementations.
 
+## CLI entry points
+
+| Mode | Invocation | Source | Exit behavior |
+|------|------------|--------|---------------|
+| Batch | no args | `WorkstationStorage/Targets/*.cs` | Enter-to-exit; no exit code yet |
+| Sniff | `sniff path\to\File.cs` | external path in place | no Enter wait; exit `0`/`1` from pass/fail |
+
+Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets.
+
 ## Future extensions
 
 - `IRuleRepository` backed by a database or git-tracked rule pack
 - `IAiOrchestrator` implementation for cloud APIs with routing policy
 - Pre-AI deterministic analyzers (Roslyn-based) as guardrails before LLM critique
-- Path-based `sniff` / `--file` entry point reusing `AuditFileAsync`
+- Directory sniff and fuller CLI args (`--model`, `--storage`, `--non-interactive`)

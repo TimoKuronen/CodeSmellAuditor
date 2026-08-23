@@ -16,6 +16,7 @@ CI runs the same command on Ubuntu for every push to `main`.
 | `AuditPromptBuilder` | System/user prompt shape, character budget rejection |
 | `AuditReportParser` | Reads `Status: COMPLIANT` / `Status: REVIEW REQUIRED`, fallback heuristics |
 | `AuditEngine` | `AuditFileAsync` writes reports; `RunBatchAsync` returns empty or multi-file results via fakes |
+| `CliArgs` | Batch vs sniff modes, missing path, non-`.cs`, unknown command |
 
 Engine tests use a fake `IRuleRepository` and fake `IAiOrchestrator` — no terminal UI and no network. Interactive `CliAuditHost` Status wrapping is not unit-tested.
 
@@ -24,7 +25,7 @@ Engine tests use a fake `IRuleRepository` and fake `IAiOrchestrator` — no term
 - Real Ollama HTTP streaming (`OllamaAiOrchestrator`)
 - `CliAuditHost` Spectre Status / streaming layout
 - End-to-end audit quality or model output consistency
-- CLI path resolution or interactive Enter-to-exit behavior
+- Interactive Enter-to-exit behavior
 
 ## Manual smoke test
 
@@ -33,6 +34,7 @@ Requires Ollama running with the configured model pulled:
 ```powershell
 ollama pull qwen3.5:4b
 dotnet run --project CodeSmellAuditor.Cli
+dotnet run --project CodeSmellAuditor.Cli -- sniff path\to\SomeFile.cs
 ```
 
-Expect a yellow spinner while waiting on the model, then streamed critique text. Inspect the newest file in `WorkstationStorage/Reports/`.
+Expect a yellow spinner while waiting on the model, then streamed critique text. Inspect the newest file in `WorkstationStorage/Reports/`. For sniff, confirm the process exits without waiting for Enter.
