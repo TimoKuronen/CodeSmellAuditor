@@ -1,0 +1,13 @@
+---
+description: Error handling for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+alwaysApply: true
+---
+
+# Error handling
+
+RulePackVersion: 1.3.0
+
+- Flag empty catch blocks and swallowed exceptions.
+- Flag defensive null checks on every internal private call when serialized refs should be validated at startup.
+- Flag exceptions for expected gameplay rejection paths; prefer Try/bool + reason enum.
+- Validate external/untrusted input at boundaries; do not require blanket null guards on internal helpers.

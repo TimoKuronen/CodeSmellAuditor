@@ -54,7 +54,7 @@ flowchart TB
 
 ### IRuleRepository
 
-Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.mdc` audit packs by default; reference `.md` manuals are excluded from runtime prompts.
+Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.mdc` audit packs by default; reference `.md` manuals are excluded from runtime prompts. `WorkstationStorage/Rules/` aligns with EngineeringRulebook Ollama pack RulePackVersion 1.3.0 (compact excerpts; report shape stays owned by `AuditPromptBuilder`).
 
 ### IAiOrchestrator
 
@@ -68,10 +68,10 @@ Assembles system instructions, rule excerpts, and source text. Enforces a charac
 
 Presentation-neutral domain API:
 
-1. `LoadRulesAsync` — load compact rules
-2. `EnumerateTargetFiles` / `ResolveReportsDirectory` — storage helpers
-3. `AuditFileAsync` — analyze one file, optional token callback, persist markdown report
-4. `RunBatchAsync` — headless multi-file run for tests and non-interactive callers
+1. `LoadRulesAsync` â€” load compact rules
+2. `EnumerateTargetFiles` / `ResolveReportsDirectory` â€” storage helpers
+3. `AuditFileAsync` â€” analyze one file, optional token callback, persist markdown report
+4. `RunBatchAsync` â€” headless multi-file run for tests and non-interactive callers
 
 ### CliAuditHost
 

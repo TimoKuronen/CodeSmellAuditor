@@ -1,0 +1,22 @@
+---
+description: Unity and .NET project layout for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+alwaysApply: true
+---
+
+# Project layout
+
+RulePackVersion: 1.3.0
+
+## Unity
+
+- Flag new types in global Interfaces/, Managers/, or Controllers/ buckets when feature folders exist.
+- Flag interfaces split from their implementation across unrelated top-level folders.
+- Flag namespace/folder mismatch on new files under Assets/.../Scripts/.
+- Prefer feature-first layout per EngineeringRulebook unity-project-layout.md.
+
+## .NET
+
+- Flag Core referencing Infrastructure or Ui.
+- Flag interfaces defined in Infrastructure that Core depends on (dependency inversion violation).
+- Flag new solution-wide Interfaces/ dump folders.
+- Prefer layer projects per EngineeringRulebook dotnet-project-layout.md.

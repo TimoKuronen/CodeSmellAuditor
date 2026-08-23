@@ -21,7 +21,7 @@
 ## Scope
 
 - Audits individual `.cs` files, not full solution context or cross-file dependencies.
-- Rules are plain markdown; no versioning or conflict resolution.
+- Rules are plain markdown files; pack version is noted inside each `.mdc` (RulePackVersion) but the tool does not enforce version checks.
 
 ## UX
 

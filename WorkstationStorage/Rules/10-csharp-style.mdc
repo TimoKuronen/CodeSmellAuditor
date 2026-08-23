@@ -1,0 +1,21 @@
+---
+description: C# style for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+globs: "**/*.cs"
+alwaysApply: true
+---
+
+# C# style
+
+RulePackVersion: 1.3.0
+
+## Quick rules
+
+- PascalCase for types, methods, properties.
+- camelCase for private fields (unless project override documented in input).
+- File name aligns with primary type name.
+- Functions at one abstraction level.
+- Flag classes with more than five constructor dependencies as possible SRP violations.
+- Public types and non-obvious public boundary methods should have XML summaries; flag redundant summaries that restate the name.
+- Inline comments explain why - not line narration or inspector setup.
+- ScriptableObject config assets: prefer auto-properties or public fields; flag passthrough getters with no logic.
+- Flag runtime mutation of shared ScriptableObject assets in gameplay code.

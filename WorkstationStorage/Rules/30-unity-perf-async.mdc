@@ -1,0 +1,13 @@
+---
+description: Unity performance and async for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+alwaysApply: true
+---
+
+# Unity performance and async
+
+RulePackVersion: 1.3.0
+
+- Flag Vector3.Distance or magnitude used only for threshold comparison in per-frame or network hot paths; suggest sqrMagnitude.
+- Flag unnecessary UnityEngine to Unity.Mathematics conversion in inner loops.
+- Flag mixed coroutine/Task/UniTask in one flow without clear reason.
+- Prefer UniTask for new Unity gameplay async when the project references Cysharp.Threading.Tasks.
