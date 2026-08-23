@@ -2,23 +2,27 @@
 
 namespace CodeSmellAuditor.Core;
 
+/// <summary>
+/// Domain orchestration for loading rules, auditing one file, and saving reports.
+/// Batch presentation (spinners, streaming layout) belongs in Cli.
+/// </summary>
 public class AuditEngine
 {
     private readonly IRuleRepository _ruleRepository;
     private readonly IAiOrchestrator _aiService;
-    private readonly IAuditProgressReporter _progressReporter;
 
-    public AuditEngine(
-        IRuleRepository ruleRepository,
-        IAiOrchestrator aiService,
-        IAuditProgressReporter progressReporter)
+    public AuditEngine(IRuleRepository ruleRepository, IAiOrchestrator aiService)
     {
         _ruleRepository = ruleRepository;
         _aiService = aiService;
-        _progressReporter = progressReporter;
     }
 
-    public async Task<AuditRunResult> RunAsync(string rulesPath, string targetsPath)
+    public async Task<IReadOnlyList<AuditRule>> LoadRulesAsync(string rulesPath)
+    {
+        return (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
+    }
+
+    public static string ResolveReportsDirectory(string rulesPath)
     {
         string basePath = Path.GetDirectoryName(rulesPath.TrimEnd(Path.DirectorySeparatorChar))
                           ?? throw new InvalidOperationException("Invalid base storage path.");
@@ -29,39 +33,52 @@ public class AuditEngine
             Directory.CreateDirectory(reportsDirectoryPath);
         }
 
-        var architecturalRules = (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
-        _progressReporter.RulesLoaded(architecturalRules);
+        return reportsDirectoryPath;
+    }
 
-        var targetFiles = Directory.GetFiles(targetsPath, "*.cs");
-        if (targetFiles.Length == 0)
+    public static IReadOnlyList<string> EnumerateTargetFiles(string targetsPath)
+    {
+        return Directory.GetFiles(targetsPath, "*.cs");
+    }
+
+    public async Task<FileAuditResult> AuditFileAsync(
+        string filePath,
+        IReadOnlyList<AuditRule> rules,
+        string reportsDirectoryPath,
+        Action<string>? onTokenReceived = null)
+    {
+        string fileName = Path.GetFileName(filePath);
+        string sourceCodeText = await File.ReadAllTextAsync(filePath);
+        SourceFile currentTarget = new(filePath, sourceCodeText);
+
+        AuditReport auditReport = await _aiService.AnalyzeCodeAsync(
+            currentTarget,
+            rules,
+            token => onTokenReceived?.Invoke(token));
+
+        string writtenFilePath = await SaveReportToFileSystemAsync(
+            reportsDirectoryPath,
+            fileName,
+            auditReport.MarkdownCritique);
+
+        return new FileAuditResult(fileName, writtenFilePath, auditReport.HasPassed);
+    }
+
+    public async Task<AuditRunResult> RunBatchAsync(string rulesPath, string targetsPath)
+    {
+        IReadOnlyList<AuditRule> rules = await LoadRulesAsync(rulesPath);
+        string reportsDirectoryPath = ResolveReportsDirectory(rulesPath);
+        IReadOnlyList<string> targetFiles = EnumerateTargetFiles(targetsPath);
+
+        if (targetFiles.Count == 0)
         {
-            _progressReporter.NoTargetsFound();
             return new AuditRunResult(Array.Empty<FileAuditResult>());
         }
 
         var fileResults = new List<FileAuditResult>();
-
-        foreach (var filePath in targetFiles)
+        foreach (string filePath in targetFiles)
         {
-            string fileName = Path.GetFileName(filePath);
-            string sourceCodeText = await File.ReadAllTextAsync(filePath);
-            SourceFile currentTarget = new(filePath, sourceCodeText);
-
-            AuditReport auditReport = await _progressReporter.RunFileAuditAsync(
-                fileName,
-                onTokenReceived => _aiService.AnalyzeCodeAsync(
-                    currentTarget,
-                    architecturalRules,
-                    onTokenReceived));
-
-            string writtenFilePath = await SaveReportToFileSystemAsync(
-                reportsDirectoryPath,
-                fileName,
-                auditReport.MarkdownCritique);
-
-            _progressReporter.ReportSaved(fileName, writtenFilePath);
-
-            fileResults.Add(new FileAuditResult(fileName, writtenFilePath, auditReport.HasPassed));
+            fileResults.Add(await AuditFileAsync(filePath, rules, reportsDirectoryPath));
         }
 
         return new AuditRunResult(fileResults);

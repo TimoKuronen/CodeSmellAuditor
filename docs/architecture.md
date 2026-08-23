@@ -2,18 +2,17 @@
 
 ## Overview
 
-CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider.
+CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider. Cli owns interactive presentation; Core owns rule loading, per-file audit, and report persistence.
 
 ```mermaid
 flowchart TB
     subgraph cli [CodeSmellAuditor.Cli]
         Program[Program.cs composition root]
-        Reporter[SpectreAuditProgressReporter]
+        Host[CliAuditHost]
     end
 
     subgraph core [CodeSmellAuditor.Core]
         Engine[AuditEngine]
-        Progress[IAuditProgressReporter]
         Rules[IRuleRepository]
         AI[IAiOrchestrator]
         PromptBuilder[AuditPromptBuilder]
@@ -30,17 +29,16 @@ flowchart TB
         Ollama[Ollama localhost:11434]
     end
 
+    Program --> Host
     Program --> Engine
     Program --> Rules
     Program --> AI
-    Program --> Reporter
-    Engine --> Progress
-    Reporter -.implements.-> Progress
+    Host --> Engine
     Engine --> Rules
     Engine --> AI
     AI --> PromptBuilder
     Rules --> RulesFolder
-    Engine --> TargetsFolder
+    Host --> TargetsFolder
     Engine --> ReportsFolder
     AI --> Ollama
 ```
@@ -49,10 +47,10 @@ flowchart TB
 
 | Project | Responsibility |
 |---------|---------------|
-| CodeSmellAuditor.Cli | Composition root, Spectre.Console UX via `SpectreAuditProgressReporter`, path configuration |
-| CodeSmellAuditor.Core | AuditEngine orchestration, interfaces, Ollama HTTP streaming, prompt budgeting |
+| CodeSmellAuditor.Cli | Composition root, `CliAuditHost` batch UX (Spectre Status + streaming), path configuration |
+| CodeSmellAuditor.Core | `AuditEngine` file-level audit API, interfaces, Ollama HTTP streaming, prompt budgeting |
 
-## Key interfaces
+## Key types
 
 ### IRuleRepository
 
@@ -68,25 +66,25 @@ Assembles system instructions, rule excerpts, and source text. Enforces a charac
 
 ### AuditEngine
 
-Coordinates the batch workflow:
+Presentation-neutral domain API:
 
-1. Load compact rules
-2. Enumerate `.cs` targets
-3. Delegate per-file audit presentation to `IAuditProgressReporter`
-4. Call AI orchestrator with streaming callback
-5. Parse status and persist markdown report with YAML front matter
-6. Return `AuditRunResult` with per-file pass/fail metadata
+1. `LoadRulesAsync` — load compact rules
+2. `EnumerateTargetFiles` / `ResolveReportsDirectory` — storage helpers
+3. `AuditFileAsync` — analyze one file, optional token callback, persist markdown report
+4. `RunBatchAsync` — headless multi-file run for tests and non-interactive callers
 
-### IAuditProgressReporter
+### CliAuditHost
 
-Presentation-neutral hook for workflow progress. `SpectreAuditProgressReporter` in Cli renders spinners, streaming output, and saved-report messages. `NullAuditProgressReporter` supports headless execution and testing without a terminal UI.
+Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path.
 
 ## Design decisions
 
 | Decision | Rationale |
 |----------|-----------|
 | Interfaces for rules and AI | Swap rule packs or cloud API without changing engine |
-| Streaming tokens to CLI | Immediate feedback during audit |
+| Cli owns Status wrapping | Spectre Status must wrap the await; presentation stays out of Core |
+| File-level Core API | Keeps Core modular; Cli (or future sniff CLI) can drive one file at a time |
+| Streaming token callback | Immediate feedback without Core knowing about the console |
 | Compact `.mdc` rules at runtime | Keeps prompt size within local model context |
 | Bounded report template | Prevents reasoning models from consuming output budget |
 | Status line parsing | Deterministic pass/fail from `Status:` line |
@@ -105,3 +103,4 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 - `IRuleRepository` backed by a database or git-tracked rule pack
 - `IAiOrchestrator` implementation for cloud APIs with routing policy
 - Pre-AI deterministic analyzers (Roslyn-based) as guardrails before LLM critique
+- Path-based `sniff` / `--file` entry point reusing `AuditFileAsync`

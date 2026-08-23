@@ -59,10 +59,10 @@ var auditConfig = new AuditConfiguration(
 
 IRuleRepository repository = new MarkdownRuleRepository();
 IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
-IAuditProgressReporter progressReporter = new SpectreAuditProgressReporter();
+var engine = new AuditEngine(repository, aiService);
+var host = new CliAuditHost(engine);
 
-var engine = new AuditEngine(repository, aiService, progressReporter);
-await engine.RunAsync(rulesPath, targetsPath);
+await host.RunAsync(rulesPath, targetsPath);
 
 AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");
 WaitForExit();

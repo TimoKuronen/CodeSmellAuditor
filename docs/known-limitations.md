@@ -4,7 +4,7 @@
 
 - **Not static analysis.** The tool sends plain source text to an LLM; it does not use Roslyn or deterministic rule evaluation.
 - Model output is non-deterministic; the same file may produce different critiques between runs.
-- Pass/fail is parsed from a `Status:` line in the report body. The engine records verdicts in `AuditRunResult`, but the CLI does not yet print a batch summary or set exit codes.
+- Pass/fail is parsed from a `Status:` line in the report body. `CliAuditHost` / `RunBatchAsync` return `AuditRunResult`, but the CLI does not yet print a batch summary or set exit codes.
 
 ## AI dependency
 

@@ -36,10 +36,10 @@ Environment variables (all optional):
 
 ## How it works
 
-1. `Program.cs` (composition root) resolves paths and wires `MarkdownRuleRepository`, `OllamaAiOrchestrator`, and `AuditEngine`.
-2. Core loads compact `.mdc` rules, reads each target `.cs` file, builds a budgeted prompt, and streams Ollama's response.
-3. Cli renders progress through `SpectreAuditProgressReporter`; Core stays presentation-neutral via `IAuditProgressReporter`.
-4. Each audit saves a markdown report with YAML front matter. Pass/fail is parsed from a `Status:` line in the report body.
+1. `Program.cs` (composition root) resolves paths and wires `MarkdownRuleRepository`, `OllamaAiOrchestrator`, `AuditEngine`, and `CliAuditHost`.
+2. Core exposes a file-level API: load rules, audit one `.cs` file (budgeted prompt + Ollama stream), save a markdown report.
+3. `CliAuditHost` owns the interactive batch loop and wraps each file audit in Spectre Status (spinner until first token, then streamed critique).
+4. Pass/fail is parsed from a `Status:` line in the report body.
 
 Sample report format: [docs/sample-report-excerpt.md](docs/sample-report-excerpt.md)
 
@@ -51,7 +51,7 @@ More detail: [architecture](docs/architecture.md) · [known limitations](docs/kn
 dotnet test CodeSmellAuditor.slnx -c Release
 ```
 
-**15 unit tests** covering rule loading, prompt building, pass/fail parsing, and `AuditEngine` orchestration with fakes. Ollama HTTP streaming is exercised manually, not in CI.
+Unit tests cover rule loading, prompt building, pass/fail parsing, and `AuditEngine` file/batch orchestration with fakes. Ollama HTTP streaming and Cli Status UX are exercised manually, not in CI.
 
 ## Current scope
 
