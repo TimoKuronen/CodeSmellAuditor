@@ -1,82 +1,53 @@
 # CodeSmellAuditor
 
-[![CI](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml/badge.svg)](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml)
-
 Local-first CLI that reviews C# source against markdown governance rules using a local [Ollama](https://ollama.com/) model. It streams the critique live and saves a timestamped markdown report.
 
 This is an **AI-assisted semantic code reviewer**, not a deterministic static analyzer. It does not use Roslyn or parse C# into a syntax tree; the LLM interprets plain source text against your rule packs.
 
-Built while learning .NET architecture and agent-assisted workflows — the irony of using AI to audit AI-generated code is not lost on me.
+[![CI](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml/badge.svg)](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![CodeSmellAuditor terminal output](docs/images/terminal-output.png)
 
-## Requirements
+## Highlights
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Ollama](https://ollama.com/) running locally with a pulled model (default: `qwen3.5:4b`)
-
-## Run
-
-Batch (files in Targets):
-
-```powershell
-dotnet run --project CodeSmellAuditor.Cli
-```
-
-Sniff a file in place (any path; no Targets copy):
-
-```powershell
-dotnet run --project CodeSmellAuditor.Cli -- sniff path\to\Program.cs
-```
-
-Drop `.cs` files into `WorkstationStorage/Targets/` for batch mode. Governance rules as `.mdc` go in `WorkstationStorage/Rules/`. Reports land in `WorkstationStorage/Reports/` for both batch and sniff. Sniff does not wait for Enter; exit code is `0` if the audit passed, `1` if review is required or the run failed.
-
-## Configuration
-
-Environment variables (all optional):
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `CODESMELL_STORAGE` | `WorkstationStorage` under repo root | Root folder containing `Rules/`, `Targets/`, `Reports/` |
-| `CODESMELL_MODEL` | `qwen3.5:4b` | Ollama model name |
-| `CODESMELL_NUM_CTX` | `8192` | Model context window passed to Ollama |
-| `CODESMELL_NUM_PREDICT` | `1200` | Max output tokens for the critique |
-
-## How it works
-
-1. `Program.cs` (composition root) parses args (batch vs `sniff`), resolves paths, and wires `MarkdownRuleRepository`, `OllamaAiOrchestrator`, `AuditEngine`, and `CliAuditHost`.
-2. Core exposes a file-level API: load rules, audit one `.cs` file (budgeted prompt + Ollama stream), save a markdown report.
-3. `CliAuditHost` owns Status wrapping for both Targets batch and path-based sniff.
-4. Pass/fail is parsed from a `Status:` line in the report body.
-
-Sample report format: [docs/sample-report-excerpt.md](docs/sample-report-excerpt.md)
-
-More detail: [architecture](docs/architecture.md) · [known limitations](docs/known-limitations.md) · [testing](docs/testing.md)
-
-## Tests
-
-```powershell
-dotnet test CodeSmellAuditor.slnx -c Release
-```
-
-Unit tests cover rule loading, prompt building, pass/fail parsing, and `AuditEngine` file/batch orchestration with fakes. Ollama HTTP streaming and Cli Status UX are exercised manually, not in CI.
-
-## Current scope
-
-- Single-file `.cs` audits against local markdown rule packs
-- Path-based `sniff` entry for auditing a file where it already lives
-- Local Ollama only (privacy-preserving; no cloud API)
-- Interactive CLI with streaming terminal output
+- Single-file `.cs` audits against local markdown rule packs (`.mdc`)
+- Batch mode via `WorkstationStorage/Targets/` and path-based `sniff` for files in place
+- Local Ollama only — source stays on your machine
+- Streaming terminal output with Spectre Status spinner until first token
+- Timestamped markdown reports under `WorkstationStorage/Reports/`
+- Pass/fail parsed from a `Status:` line in the report; `sniff` sets process exit codes
 - Layered Core / Cli / Tests solution with constructor injection at the composition root
+- Compact rule excerpts with character-budget validation before each audit
+- 25 xUnit tests for rule loading, prompt building, pass/fail parsing, and engine orchestration (fakes; no Ollama in CI)
+- Ubuntu CI via GitHub Actions
 
-## Future implementation
+## Architecture
 
-- Full CLI arguments (`--model`, `--storage`, `--non-interactive`) beyond the `sniff` path entry
-- Surface batch pass/fail summary in the CLI (engine already returns `AuditRunResult`; sniff already sets exit codes)
-- Directory sniff (audit all `*.cs` under a folder)
-- Roslyn-based deterministic pre-checks before the LLM pass
-- Cloud model backend via a second `IAiOrchestrator` implementation
+```text
+Program.cs (composition root)
+  -> MarkdownRuleRepository / OllamaAiOrchestrator
+  -> AuditEngine
+  -> CliAuditHost (batch + sniff)
+```
+
+Two projects plus tests: `CodeSmellAuditor.Core` (engine, interfaces, Ollama HTTP), `CodeSmellAuditor.Cli` (composition root and interactive host), `CodeSmellAuditor.Core.Tests`.
+
+Details: [docs/architecture.md](docs/architecture.md)
+
+## Stack
+
+- C# / .NET 10
+- [Ollama](https://ollama.com/) local HTTP API
+- [Spectre.Console](https://spectreconsole.net/) (Status + streaming)
+- xUnit
+- Markdown rule packs (`.mdc`)
+
+## Docs
+
+- [Architecture](docs/architecture.md)
+- [Sample report excerpt](docs/sample-report-excerpt.md)
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -42,4 +42,4 @@ Extract spawn planning into a dedicated planner class and inject it as a single 
 
 ## Interrupted reports
 
-If the model exceeds its output budget, the report may be truncated. Use a smaller target file, a model with larger context, or lower `CODESMELL_NUM_PREDICT`. See [known-limitations.md](known-limitations.md).
+If the model exceeds its output budget, the report may be truncated.
