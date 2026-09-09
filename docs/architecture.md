@@ -102,7 +102,17 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 | Mode | Invocation | Source | Exit behavior |
 |------|------------|--------|---------------|
-| Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1` from `AuditRunResult`; still Enter-to-exit for desk UX |
+| Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1`; Enter-to-exit unless `--non-interactive` |
 | Sniff | `sniff path\to\File.cs` | external path in place | no Enter wait; exit `0`/`1` from pass/fail |
 
-Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`.
+### Shared options
+
+| Flag | Purpose | Override |
+|------|---------|----------|
+| `--model <name>` | Ollama model for this run | `CODESMELL_MODEL` wins when set |
+| `--storage <path>` | WorkstationStorage root | `CODESMELL_STORAGE` wins when set |
+| `--non-interactive` | Skip batch Enter wait | — |
+
+Flags may appear before or after `sniff`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
+
+Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`. `scripts/sniff.ps1` forwards optional `-Model` / `-Storage` to the CLI.

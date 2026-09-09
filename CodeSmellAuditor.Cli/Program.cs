@@ -1,5 +1,4 @@
-﻿
-using System.Text;
+﻿using System.Text;
 using CodeSmellAuditor.Cli;
 using CodeSmellAuditor.Core;
 using Spectre.Console;
@@ -21,7 +20,7 @@ catch (ArgumentException ex)
     return;
 }
 
-string baseStoragePath = ResolveStoragePath();
+string baseStoragePath = ResolveStoragePath(cliArgs.Storage);
 string rulesPath = Path.Combine(baseStoragePath, "Rules");
 string targetsPath = Path.Combine(baseStoragePath, "Targets");
 
@@ -29,12 +28,8 @@ if (!Directory.Exists(rulesPath))
 {
     AnsiConsole.MarkupLine("[bold red]ERROR:[/] Rules folder not found.");
     AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
-    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE to override, or run from the repo with WorkstationStorage present.[/]");
-    if (cliArgs.Mode == CliMode.Batch)
-    {
-        WaitForExit();
-    }
-
+    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE or --storage, or run from the repo with WorkstationStorage present.[/]");
+    WaitForEnterIfInteractive(cliArgs);
     Environment.ExitCode = 1;
     return;
 }
@@ -43,18 +38,23 @@ if (cliArgs.Mode == CliMode.Batch && !Directory.Exists(targetsPath))
 {
     AnsiConsole.MarkupLine("[bold red]ERROR:[/] Targets folder not found.");
     AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
-    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE to override, or run from the repo with WorkstationStorage present.[/]");
-    WaitForExit();
+    AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE or --storage, or run from the repo with WorkstationStorage present.[/]");
+    WaitForEnterIfInteractive(cliArgs);
     Environment.ExitCode = 1;
     return;
 }
 
-static string ResolveStoragePath()
+static string ResolveStoragePath(string? cliStorage)
 {
-    string? configuredPath = Environment.GetEnvironmentVariable("CODESMELL_STORAGE");
-    if (!string.IsNullOrWhiteSpace(configuredPath))
+    string? envStorage = Environment.GetEnvironmentVariable("CODESMELL_STORAGE");
+    if (!string.IsNullOrWhiteSpace(envStorage))
     {
-        return configuredPath;
+        return envStorage;
+    }
+
+    if (!string.IsNullOrWhiteSpace(cliStorage))
+    {
+        return Path.GetFullPath(cliStorage);
     }
 
     var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -73,14 +73,35 @@ static string ResolveStoragePath()
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "WorkstationStorage"));
 }
 
-static void WaitForExit()
+static string ResolveModelName(string? cliModel)
 {
+    string? envModel = Environment.GetEnvironmentVariable("CODESMELL_MODEL");
+    if (!string.IsNullOrWhiteSpace(envModel))
+    {
+        return envModel;
+    }
+
+    if (!string.IsNullOrWhiteSpace(cliModel))
+    {
+        return cliModel;
+    }
+
+    return AuditConfiguration.DefaultModelName;
+}
+
+static void WaitForEnterIfInteractive(CliArgs parsed)
+{
+    if (parsed.NonInteractive || parsed.Mode == CliMode.Sniff)
+    {
+        return;
+    }
+
     AnsiConsole.MarkupLine("[bold cyan]Press [[ENTER]] to exit...[/]");
     Console.ReadLine();
 }
 
 var auditConfig = new AuditConfiguration(
-    ModelName: Environment.GetEnvironmentVariable("CODESMELL_MODEL") ?? "qwen3.5:4b",
+    ModelName: ResolveModelName(cliArgs.Model),
     NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
     NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
 
@@ -97,7 +118,7 @@ if (cliArgs.Mode == CliMode.Batch)
         batchResult.AllPassed
             ? "[bold green]Batch processing complete.[/]"
             : "[bold yellow]Batch processing complete with failures.[/]");
-    WaitForExit();
+    WaitForEnterIfInteractive(cliArgs);
     return;
 }
 

@@ -1,10 +1,13 @@
 namespace CodeSmellAuditor.Core;
 
 public record AuditConfiguration(
-    string ModelName = "qwen3.5:4b",
+    string ModelName = AuditConfiguration.DefaultModelName,
     int NumCtx = 8192,
     int NumPredict = 1200,
-    int MaxInputCharacters = 24000);
+    int MaxInputCharacters = 24000)
+{
+    public const string DefaultModelName = "qwen3.5:4b";
+}
 
 public static class AuditPromptBuilder
 {
