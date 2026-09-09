@@ -16,10 +16,11 @@ This is an **AI-assisted semantic code reviewer**, not a deterministic static an
 - Local Ollama only — source stays on your machine
 - Streaming terminal output with Spectre Status spinner until first token
 - Timestamped markdown reports under `WorkstationStorage/Reports/`
-- Pass/fail parsed from a `Status:` line in the report; `sniff` sets process exit codes
+- Pass/fail parsed from a `Status:` line in the report; batch and sniff set process exit codes (`0`/`1`)
+- Batch mode prints a pass/fail summary after all Targets files; still waits for Enter (desk UX)
 - Layered Core / Cli / Tests solution with constructor injection at the composition root
 - Compact rule excerpts with character-budget validation before each audit
-- 25 xUnit tests for rule loading, prompt building, pass/fail parsing, and engine orchestration (fakes; no Ollama in CI)
+- 30 xUnit tests for rule loading, prompt building, pass/fail parsing, summaries, and engine orchestration (fakes; no Ollama in CI)
 - Ubuntu CI via GitHub Actions
 
 ## Architecture

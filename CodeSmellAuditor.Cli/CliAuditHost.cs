@@ -24,7 +24,9 @@ public sealed class CliAuditHost
         if (targetFiles.Count == 0)
         {
             AnsiConsole.MarkupLine("[bold yellow]WARNING:[/] No C# target files found.");
-            return new AuditRunResult(Array.Empty<FileAuditResult>());
+            AuditRunResult emptyResult = new(Array.Empty<FileAuditResult>());
+            PrintBatchSummary(emptyResult);
+            return emptyResult;
         }
 
         string reportsDirectoryPath = AuditEngine.ResolveReportsDirectory(rulesPath);
@@ -43,7 +45,9 @@ public sealed class CliAuditHost
             fileResults.Add(result);
         }
 
-        return new AuditRunResult(fileResults);
+        AuditRunResult runResult = new(fileResults);
+        PrintBatchSummary(runResult);
+        return runResult;
     }
 
     /// <summary>
@@ -127,6 +131,14 @@ public sealed class CliAuditHost
             AnsiConsole.MarkupLine($" [grey]└──[/] [cyan]{rule.Name}[/]");
         }
 
+        AnsiConsole.WriteLine();
+    }
+
+    private static void PrintBatchSummary(AuditRunResult result)
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[bold]Batch summary[/]").RuleStyle("grey"));
+        AnsiConsole.WriteLine(BatchRunSummary.Format(result));
         AnsiConsole.WriteLine();
     }
 }
