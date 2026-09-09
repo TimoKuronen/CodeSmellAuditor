@@ -102,7 +102,7 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 | Mode | Invocation | Source | Exit behavior |
 |------|------------|--------|---------------|
-| Batch | no args | `WorkstationStorage/Targets/*.cs` | Enter-to-exit; no exit code yet |
+| Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1` from `AuditRunResult`; still Enter-to-exit for desk UX |
 | Sniff | `sniff path\to\File.cs` | external path in place | no Enter wait; exit `0`/`1` from pass/fail |
 
-Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets.
+Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`.

@@ -91,8 +91,12 @@ var host = new CliAuditHost(engine);
 
 if (cliArgs.Mode == CliMode.Batch)
 {
-    await host.RunAsync(rulesPath, targetsPath);
-    AnsiConsole.MarkupLine("[bold green]Batch processing complete.[/]");
+    AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath);
+    Environment.ExitCode = batchResult.ExitCode;
+    AnsiConsole.MarkupLine(
+        batchResult.AllPassed
+            ? "[bold green]Batch processing complete.[/]"
+            : "[bold yellow]Batch processing complete with failures.[/]");
     WaitForExit();
     return;
 }
@@ -100,7 +104,7 @@ if (cliArgs.Mode == CliMode.Batch)
 try
 {
     AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPath!);
-    Environment.ExitCode = sniffResult.AllPassed ? 0 : 1;
+    Environment.ExitCode = sniffResult.ExitCode;
 }
 catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)
 {
