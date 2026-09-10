@@ -15,7 +15,7 @@ This is an **AI-assisted semantic code reviewer**, not a deterministic static an
 - Batch mode via `WorkstationStorage/Targets/` and path-based `sniff` for files in place
 - Local Ollama only — source stays on your machine
 - Streaming terminal output with Spectre Status spinner until first token
-- Timestamped markdown reports under `WorkstationStorage/Reports/`
+- Timestamped markdown reports under `WorkstationStorage/Reports/` (`{File}_{yyyyMMdd_HHmmss}_Critique.md`)
 - Pass/fail parsed from a `Status:` line in the report; batch and sniff set process exit codes (`0`/`1`)
 - Batch mode prints a pass/fail summary after all Targets files; waits for Enter unless `--non-interactive`
 - CLI flags: `--model`, `--storage`, `--non-interactive` (env vars `CODESMELL_MODEL` / `CODESMELL_STORAGE` override flags when set)

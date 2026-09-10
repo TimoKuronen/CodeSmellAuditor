@@ -33,6 +33,10 @@ public class AuditEngineTests
             Assert.False(result.HasPassed);
             Assert.True(File.Exists(result.ReportPath));
 
+            string reportFileName = Path.GetFileName(result.ReportPath);
+            Assert.StartsWith("Sample_", reportFileName);
+            Assert.EndsWith("_Critique.md", reportFileName);
+
             string savedReport = await File.ReadAllTextAsync(result.ReportPath);
             Assert.Contains("TargetFile: Sample.cs", savedReport);
             Assert.Contains("Status: REVIEW REQUIRED", savedReport);
