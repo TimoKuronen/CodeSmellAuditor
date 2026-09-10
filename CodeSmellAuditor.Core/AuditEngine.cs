@@ -90,7 +90,7 @@ public class AuditEngine
         string markdownContent)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        string cleanFileName = $"{timestamp}_{Path.GetFileNameWithoutExtension(targetFileName)}_Critique.md";
+        string cleanFileName = $"{Path.GetFileNameWithoutExtension(targetFileName)}_{timestamp}_Critique.md";
         string fullOutputPath = Path.Combine(targetFolder, cleanFileName);
 
         var documentBuilder = new StringBuilder();
