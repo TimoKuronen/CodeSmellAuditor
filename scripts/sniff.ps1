@@ -1,6 +1,10 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Target
+    [string]$Target,
+
+    [string]$Model,
+
+    [string]$Storage
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,5 +24,14 @@ if (-not [System.IO.Path]::IsPathRooted($absoluteFile)) {
 $absoluteFile = [System.IO.Path]::GetFullPath($absoluteFile)
 
 Set-Location -LiteralPath $repoRoot
-& dotnet run --project $cliProject -- sniff $absoluteFile
+
+$cliArgs = @("sniff", $absoluteFile)
+if (-not [string]::IsNullOrWhiteSpace($Model)) {
+    $cliArgs += @("--model", $Model)
+}
+if (-not [string]::IsNullOrWhiteSpace($Storage)) {
+    $cliArgs += @("--storage", $Storage)
+}
+
+& dotnet run --project $cliProject -- @cliArgs
 exit $LASTEXITCODE
