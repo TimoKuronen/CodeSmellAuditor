@@ -83,7 +83,7 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 |----------|-----------|
 | Interfaces for rules and AI | Swap rule packs or cloud API without changing engine |
 | Cli owns Status wrapping | Spectre Status must wrap the await; presentation stays out of Core |
-| File-level Core API | Keeps Core modular; Cli (or future sniff CLI) can drive one file at a time |
+| File-level Core API | Keeps Core modular; Cli drives one or more files via sniff while Core stays per-file |
 | Streaming token callback | Immediate feedback without Core knowing about the console |
 | Compact `.mdc` rules at runtime | Keeps prompt size within local model context |
 | Bounded report template | Prevents reasoning models from consuming output budget |
@@ -103,7 +103,7 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 | Mode | Invocation | Source | Exit behavior |
 |------|------------|--------|---------------|
 | Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1`; Enter-to-exit unless `--non-interactive` |
-| Sniff | `sniff path\to\File.cs` | external path in place | no Enter wait; exit `0`/`1` from pass/fail |
+| Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; pass/fail summary; exit `0`/`1` from aggregate pass/fail |
 
 ### Shared options
 
@@ -115,4 +115,4 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 Flags may appear before or after `sniff`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
 
-Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`. `scripts/sniff.ps1` forwards optional `-Model` / `-Storage` to the CLI.
+Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards one or more `-Target` paths plus optional `-Model` / `-Storage` to the CLI.

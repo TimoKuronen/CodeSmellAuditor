@@ -12,16 +12,16 @@ This is an **AI-assisted semantic code reviewer**, not a deterministic static an
 ## Highlights
 
 - Single-file `.cs` audits against local markdown rule packs (`.mdc`)
-- Batch mode via `WorkstationStorage/Targets/` and path-based `sniff` for files in place
+- Batch mode via `WorkstationStorage/Targets/` and path-based `sniff` for one or more `.cs` files in place
 - Local Ollama only — source stays on your machine
 - Streaming terminal output with Spectre Status spinner until first token
 - Timestamped markdown reports under `WorkstationStorage/Reports/` (`{File}_{yyyyMMdd_HHmmss}_Critique.md`)
 - Pass/fail parsed from a `Status:` line in the report; batch and sniff set process exit codes (`0`/`1`)
-- Batch mode prints a pass/fail summary after all Targets files; waits for Enter unless `--non-interactive`
+- Batch and multi-file sniff print a pass/fail summary after all files; batch waits for Enter unless `--non-interactive`
 - CLI flags: `--model`, `--storage`, `--non-interactive` (env vars `CODESMELL_MODEL` / `CODESMELL_STORAGE` override flags when set)
 - Layered Core / Cli / Tests solution with constructor injection at the composition root
 - Compact rule excerpts with character-budget validation before each audit
-- 34 xUnit tests for rule loading, prompt building, pass/fail parsing, CLI flags, summaries, and engine orchestration (fakes; no Ollama in CI)
+- 40 xUnit tests for rule loading, prompt building, pass/fail parsing, CLI flags, summaries, and engine orchestration (fakes; no Ollama in CI)
 - Ubuntu CI via GitHub Actions
 
 ## Architecture

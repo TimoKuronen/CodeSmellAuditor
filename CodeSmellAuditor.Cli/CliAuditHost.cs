@@ -51,35 +51,54 @@ public sealed class CliAuditHost
     }
 
     /// <summary>
-    /// Audits one external .cs file in place. Rules and reports stay under auditor storage.
+    /// Audits one or more external .cs files in place. Rules load once; reports stay under auditor storage.
     /// </summary>
-    public async Task<AuditRunResult> RunSniffAsync(string rulesPath, string filePath)
+    public async Task<AuditRunResult> RunSniffAsync(string rulesPath, IReadOnlyList<string> filePaths)
     {
-        string absolutePath = Path.GetFullPath(filePath);
-        if (!File.Exists(absolutePath))
+        if (filePaths.Count == 0)
         {
-            throw new FileNotFoundException($"sniff target not found: {absolutePath}", absolutePath);
+            throw new ArgumentException("sniff requires at least one path to a .cs file.");
         }
 
-        if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        var absolutePaths = new List<string>(filePaths.Count);
+        foreach (string filePath in filePaths)
         {
-            throw new ArgumentException($"sniff path must be a .cs file: {absolutePath}");
+            string absolutePath = Path.GetFullPath(filePath);
+            if (!File.Exists(absolutePath))
+            {
+                throw new FileNotFoundException($"sniff target not found: {absolutePath}", absolutePath);
+            }
+
+            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"sniff path must be a .cs file: {absolutePath}");
+            }
+
+            absolutePaths.Add(absolutePath);
         }
 
         IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath);
         PrintRulesLoaded(rules);
 
         string reportsDirectoryPath = AuditEngine.ResolveReportsDirectory(rulesPath);
-        string fileName = Path.GetFileName(absolutePath);
+        var fileResults = new List<FileAuditResult>(absolutePaths.Count);
 
-        FileAuditResult result = await AuditFileWithStatusAsync(
-            absolutePath,
-            fileName,
-            rules,
-            reportsDirectoryPath);
+        foreach (string absolutePath in absolutePaths)
+        {
+            string fileName = Path.GetFileName(absolutePath);
+            FileAuditResult result = await AuditFileWithStatusAsync(
+                absolutePath,
+                fileName,
+                rules,
+                reportsDirectoryPath);
 
-        AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
-        return new AuditRunResult(new[] { result });
+            AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
+            fileResults.Add(result);
+        }
+
+        AuditRunResult runResult = new(fileResults);
+        PrintBatchSummary(runResult);
+        return runResult;
     }
 
     private async Task<FileAuditResult> AuditFileWithStatusAsync(

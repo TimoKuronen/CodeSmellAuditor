@@ -11,7 +11,7 @@ public class CliArgsTests
         CliArgs result = CliArgs.Parse(Array.Empty<string>());
 
         Assert.Equal(CliMode.Batch, result.Mode);
-        Assert.Null(result.SniffPath);
+        Assert.Empty(result.SniffPaths);
         Assert.False(result.NonInteractive);
         Assert.Null(result.Model);
         Assert.Null(result.Storage);
@@ -23,7 +23,7 @@ public class CliArgsTests
         CliArgs result = CliArgs.Parse(new[] { "sniff", @"D:\Repos\Sample.cs" });
 
         Assert.Equal(CliMode.Sniff, result.Mode);
-        Assert.Equal(@"D:\Repos\Sample.cs", result.SniffPath);
+        Assert.Equal(new[] { @"D:\Repos\Sample.cs" }, result.SniffPaths);
     }
 
     [Theory]
@@ -34,7 +34,7 @@ public class CliArgsTests
         CliArgs result = CliArgs.Parse(new[] { command, "Program.cs" });
 
         Assert.Equal(CliMode.Sniff, result.Mode);
-        Assert.Equal("Program.cs", result.SniffPath);
+        Assert.Equal(new[] { "Program.cs" }, result.SniffPaths);
     }
 
     [Fact]
@@ -42,7 +42,16 @@ public class CliArgsTests
     {
         CliArgs result = CliArgs.Parse(new[] { "sniff", "\"C:\\Work\\Foo.cs\"" });
 
-        Assert.Equal(@"C:\Work\Foo.cs", result.SniffPath);
+        Assert.Equal(new[] { @"C:\Work\Foo.cs" }, result.SniffPaths);
+    }
+
+    [Fact]
+    public void Parse_SniffMultipleCsPaths_ReturnsAll()
+    {
+        CliArgs result = CliArgs.Parse(new[] { "sniff", "A.cs", "B.cs", @"D:\C.cs" });
+
+        Assert.Equal(CliMode.Sniff, result.Mode);
+        Assert.Equal(new[] { "A.cs", "B.cs", @"D:\C.cs" }, result.SniffPaths);
     }
 
     [Fact]
@@ -60,7 +69,7 @@ public class CliArgsTests
         ArgumentException ex = Assert.Throws<ArgumentException>(
             () => CliArgs.Parse(new[] { "sniff" }));
 
-        Assert.Contains("requires a path", ex.Message);
+        Assert.Contains("at least one path", ex.Message);
     }
 
     [Fact]
@@ -73,12 +82,12 @@ public class CliArgsTests
     }
 
     [Fact]
-    public void Parse_SniffExtraPaths_Throws()
+    public void Parse_SniffMixedExtensions_ThrowsOnNonCs()
     {
         ArgumentException ex = Assert.Throws<ArgumentException>(
-            () => CliArgs.Parse(new[] { "sniff", "A.cs", "B.cs" }));
+            () => CliArgs.Parse(new[] { "sniff", "A.cs", "readme.md" }));
 
-        Assert.Contains("exactly one path", ex.Message);
+        Assert.Contains(".cs file", ex.Message);
     }
 
     [Fact]
@@ -105,12 +114,13 @@ public class CliArgsTests
             "--model", "llama3",
             "sniff",
             "Program.cs",
+            "Helper.cs",
             "--storage", @"C:\WorkstationStorage",
             "--non-interactive"
         });
 
         Assert.Equal(CliMode.Sniff, result.Mode);
-        Assert.Equal("Program.cs", result.SniffPath);
+        Assert.Equal(new[] { "Program.cs", "Helper.cs" }, result.SniffPaths);
         Assert.Equal("llama3", result.Model);
         Assert.Equal(@"C:\WorkstationStorage", result.Storage);
         Assert.True(result.NonInteractive);

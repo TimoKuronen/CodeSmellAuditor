@@ -124,7 +124,7 @@ if (cliArgs.Mode == CliMode.Batch)
 
 try
 {
-    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPath!);
+    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths);
     Environment.ExitCode = sniffResult.ExitCode;
 }
 catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)
