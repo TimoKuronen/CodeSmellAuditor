@@ -1,6 +1,6 @@
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Target,
+    [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
+    [string[]]$Target,
 
     [string]$Model,
 
@@ -17,15 +17,23 @@ if (-not (Test-Path -LiteralPath $cliProject)) {
     exit 1
 }
 
-$absoluteFile = $Target
-if (-not [System.IO.Path]::IsPathRooted($absoluteFile)) {
-    $absoluteFile = Join-Path (Get-Location) $Target
+if ($null -eq $Target -or $Target.Count -eq 0) {
+    Write-Error "At least one -Target .cs path is required."
+    exit 1
 }
-$absoluteFile = [System.IO.Path]::GetFullPath($absoluteFile)
+
+$absoluteFiles = @()
+foreach ($item in $Target) {
+    $absoluteFile = $item
+    if (-not [System.IO.Path]::IsPathRooted($absoluteFile)) {
+        $absoluteFile = Join-Path (Get-Location) $item
+    }
+    $absoluteFiles += [System.IO.Path]::GetFullPath($absoluteFile)
+}
 
 Set-Location -LiteralPath $repoRoot
 
-$cliArgs = @("sniff", $absoluteFile)
+$cliArgs = @("sniff") + $absoluteFiles
 if (-not [string]::IsNullOrWhiteSpace($Model)) {
     $cliArgs += @("--model", $Model)
 }

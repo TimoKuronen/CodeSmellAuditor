@@ -8,7 +8,7 @@ public enum CliMode
 
 public sealed record CliArgs(
     CliMode Mode,
-    string? SniffPath,
+    IReadOnlyList<string> SniffPaths,
     string? Model = null,
     string? Storage = null,
     bool NonInteractive = false)
@@ -53,32 +53,38 @@ public sealed record CliArgs(
 
         if (positional.Count == 0)
         {
-            return new CliArgs(CliMode.Batch, SniffPath: null, model, storage, nonInteractive);
+            return new CliArgs(CliMode.Batch, Array.Empty<string>(), model, storage, nonInteractive);
         }
 
         if (!string.Equals(positional[0], "sniff", StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException(
-                $"Unknown command '{positional[0]}'. Use no args for Targets batch, or: sniff <path-to-file.cs>");
+                $"Unknown command '{positional[0]}'. Use no args for Targets batch, or: sniff <path-to-file.cs> [more.cs...]");
         }
 
-        if (positional.Count < 2 || string.IsNullOrWhiteSpace(positional[1]))
+        if (positional.Count < 2)
         {
-            throw new ArgumentException("sniff requires a path to a .cs file.");
+            throw new ArgumentException("sniff requires at least one path to a .cs file.");
         }
 
-        if (positional.Count > 2)
+        var sniffPaths = new List<string>();
+        for (int i = 1; i < positional.Count; i++)
         {
-            throw new ArgumentException("sniff accepts exactly one path argument.");
+            string path = positional[i].Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException("sniff path arguments must not be empty.");
+            }
+
+            if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"sniff path must be a .cs file: {path}");
+            }
+
+            sniffPaths.Add(path);
         }
 
-        string path = positional[1].Trim().Trim('"');
-        if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"sniff path must be a .cs file: {path}");
-        }
-
-        return new CliArgs(CliMode.Sniff, path, model, storage, nonInteractive);
+        return new CliArgs(CliMode.Sniff, sniffPaths, model, storage, nonInteractive);
     }
 
     private static string RequireOptionValue(string[] args, ref int index, string optionName)
