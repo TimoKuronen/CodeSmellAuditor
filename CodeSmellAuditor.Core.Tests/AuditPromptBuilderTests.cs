@@ -17,7 +17,10 @@ public class AuditPromptBuilderTests
 
         Assert.Contains("[RULE: test.mdc]", prompt);
         Assert.Contains("Prefer interfaces at boundaries.", prompt);
-        Assert.Contains("Status: COMPLIANT or REVIEW REQUIRED", prompt);
+        Assert.Contains("Status: COMPLIANT", prompt);
+        Assert.Contains("REVIEW REQUIRED", prompt);
+        Assert.Contains("EXACTLY one of", prompt);
+        Assert.Contains("omit Missing Context", prompt);
         Assert.Contains("No analysis traces", prompt);
     }
 

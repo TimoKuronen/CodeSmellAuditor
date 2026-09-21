@@ -16,8 +16,8 @@ public static class AuditPromptBuilder
 
         # Audit Report: {filename}
 
-        Status: COMPLIANT or REVIEW REQUIRED
-        Score: 0-100
+        Status: COMPLIANT
+        Score: 85
 
         ## Top Findings
         - (max 5 bullets, one line each)
@@ -27,6 +27,11 @@ public static class AuditPromptBuilder
 
         ## Recommended Next Step
         One sentence.
+
+        Contract rules:
+        - The Status line must appear exactly once and use EXACTLY one of: COMPLIANT or REVIEW REQUIRED (nothing else on that line after Status:).
+        - The Score line must appear exactly once as an integer from 0 to 100.
+        - Emit Status, Score, and Top Findings first. If the output budget is tight, omit Missing Context and/or Recommended Next Step rather than truncating or omitting Status.
         """;
 
     public static string BuildSystemPrompt(IEnumerable<AuditRule> rules)
@@ -67,8 +72,16 @@ public static class AuditPromptBuilder
 
 public static class AuditReportParser
 {
+    /// <summary>
+    /// Pass/fail from a dedicated Status line only. Missing or unparseable Status fails closed.
+    /// </summary>
     public static bool ParsePassStatus(string reportBody)
     {
+        if (string.IsNullOrWhiteSpace(reportBody))
+        {
+            return false;
+        }
+
         foreach (string line in reportBody.Split('\n'))
         {
             string trimmed = line.Trim();
@@ -78,17 +91,21 @@ public static class AuditReportParser
             }
 
             string statusValue = trimmed["Status:".Length..].Trim();
-            if (statusValue.Contains("REVIEW REQUIRED", StringComparison.OrdinalIgnoreCase))
+            if (statusValue.Equals("REVIEW REQUIRED", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
-            if (statusValue.Contains("COMPLIANT", StringComparison.OrdinalIgnoreCase))
+            if (statusValue.Equals("COMPLIANT", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
+
+            // Status line present but not an allowed value: fail closed.
+            return false;
         }
 
-        return !reportBody.Contains("REVIEW REQUIRED", StringComparison.OrdinalIgnoreCase);
+        // No Status line (truncated or drifted report): fail closed.
+        return false;
     }
 }
