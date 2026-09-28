@@ -1,8 +1,8 @@
 # CodeSmellAuditor
 
-Local-first CLI that reviews C# source against markdown governance rules using a local [Ollama](https://ollama.com/) model. It streams the critique live and saves a timestamped markdown report.
+Local-first CLI that audits C# files and related file sets against markdown rule packs via [Ollama](https://ollama.com/). Streams the critique live and writes timestamped markdown reports.
 
-This is an **AI-assisted semantic code reviewer**, not a deterministic static analyzer. It does not use Roslyn or parse C# into a syntax tree; the LLM interprets plain source text against your rule packs.
+This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the model reads source text against your rule packs.
 
 [![CI](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml/badge.svg)](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,19 +11,13 @@ This is an **AI-assisted semantic code reviewer**, not a deterministic static an
 
 ## Highlights
 
-- Single-file `.cs` audits against local markdown rule packs (`.mdc`)
-- Batch mode via `WorkstationStorage/Targets/` and path-based `sniff` for one or more `.cs` files in place
-- `sniff-system` for two or more related files (optional `--manifest`) using `Rules/Architecture/` packs and one combined report
+- Single-file and multi-path `sniff` against local markdown rule packs (`.mdc`); batch mode via `WorkstationStorage/Targets/`
+- `sniff-system` for two or more related files (optional `--manifest`) using `Rules/Architecture/` and one combined report
 - Local Ollama only — source stays on your machine
-- Streaming terminal output with Spectre Status spinner until first token
-- Timestamped markdown reports under `WorkstationStorage/Reports/` (`{File}_{yyyyMMdd_HHmmss}_Critique.md`; system audits use `SystemAudit_*`)
-- Pass/fail parsed from a `Status:` line in the report; batch and sniff set process exit codes (`0`/`1`)
-- Batch and multi-file sniff print a pass/fail summary after all files; batch waits for Enter unless `--non-interactive`
-- CLI flags: `--model`, `--storage`, `--manifest` (sniff-system), `--non-interactive` (env vars `CODESMELL_MODEL` / `CODESMELL_STORAGE` override flags when set)
-- Layered Core / Cli / Tests solution with constructor injection at the composition root
-- Compact rule excerpts with character-budget validation before each audit
-- xUnit tests for rule loading, prompt building, pass/fail parsing, CLI flags, summaries, system audit orchestration, and engine orchestration (fakes; no Ollama in CI)
-- Ubuntu CI via GitHub Actions
+- Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
+- Pass/fail from the report `Status:` line; batch and sniff set process exit codes (`0`/`1`)
+- Layered Core / Cli with interfaces for rule loading and AI orchestration
+- xUnit tests (fakes; no Ollama in CI) and Ubuntu GitHub Actions
 
 ## Architecture
 
@@ -31,10 +25,8 @@ This is an **AI-assisted semantic code reviewer**, not a deterministic static an
 Program.cs (composition root)
   -> MarkdownRuleRepository / OllamaAiOrchestrator
   -> AuditEngine
-  -> CliAuditHost (batch + sniff)
+  -> CliAuditHost (batch + sniff + sniff-system)
 ```
-
-Two projects plus tests: `CodeSmellAuditor.Core` (engine, interfaces, Ollama HTTP), `CodeSmellAuditor.Cli` (composition root and interactive host), `CodeSmellAuditor.Core.Tests`.
 
 Details: [docs/architecture.md](docs/architecture.md)
 

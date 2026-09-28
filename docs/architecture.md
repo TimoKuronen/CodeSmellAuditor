@@ -2,7 +2,7 @@
 
 ## Overview
 
-CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider. Cli owns interactive presentation; Core owns rule loading, per-file audit, and report persistence.
+CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider. Cli owns interactive presentation; Core owns rule loading, single-file and multi-file (system) audits, and report persistence.
 
 ```mermaid
 flowchart TB
