@@ -1,0 +1,14 @@
+---
+description: Unity project layout for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+alwaysApply: false
+---
+
+# Unity project layout
+
+RulePackVersion: 1.3.0
+Mode: stack-unity
+
+- Flag new types in global Interfaces/, Managers/, or Controllers/ buckets when feature folders exist.
+- Flag interfaces split from their implementation across unrelated top-level folders.
+- Flag namespace/folder mismatch on new files under Assets/.../Scripts/.
+- Prefer feature-first layout per EngineeringRulebook unity-project-layout.md.

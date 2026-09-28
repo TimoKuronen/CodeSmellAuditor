@@ -15,9 +15,9 @@ public sealed class CliAuditHost
         _engine = engine;
     }
 
-    public async Task<AuditRunResult> RunAsync(string rulesPath, string targetsPath)
+    public async Task<AuditRunResult> RunAsync(string rulesPath, string targetsPath, string? stackName = null)
     {
-        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath);
+        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath, stackName);
         PrintRulesLoaded(rules);
 
         IReadOnlyList<string> targetFiles = AuditEngine.EnumerateTargetFiles(targetsPath);
@@ -53,7 +53,10 @@ public sealed class CliAuditHost
     /// <summary>
     /// Audits one or more external .cs files in place. Rules load once; reports stay under auditor storage.
     /// </summary>
-    public async Task<AuditRunResult> RunSniffAsync(string rulesPath, IReadOnlyList<string> filePaths)
+    public async Task<AuditRunResult> RunSniffAsync(
+        string rulesPath,
+        IReadOnlyList<string> filePaths,
+        string? stackName = null)
     {
         if (filePaths.Count == 0)
         {
@@ -77,7 +80,7 @@ public sealed class CliAuditHost
             absolutePaths.Add(absolutePath);
         }
 
-        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath);
+        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath, stackName);
         PrintRulesLoaded(rules);
 
         string reportsDirectoryPath = AuditEngine.ResolveReportsDirectory(rulesPath);
@@ -107,7 +110,8 @@ public sealed class CliAuditHost
     public async Task<AuditRunResult> RunSniffSystemAsync(
         string rulesPath,
         IReadOnlyList<string> filePaths,
-        string? manifestPath)
+        string? manifestPath,
+        string? stackName = null)
     {
         if (filePaths.Count < 2)
         {
@@ -151,12 +155,21 @@ public sealed class CliAuditHost
                 $"Architecture rules folder not found: {architectureRulesPath}");
         }
 
-        IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(architectureRulesPath);
-        if (rules.Count == 0)
+        // Architecture packs are the primary rules for system audits; optional stack packs
+        // layer on from the root Rules/Stacks folder (not under Architecture/).
+        IReadOnlyList<AuditRule> architectureRules = await _engine.LoadRulesAsync(architectureRulesPath);
+        if (architectureRules.Count == 0)
         {
             throw new InvalidOperationException(
                 $"No architecture rule packs found under {architectureRulesPath}");
         }
+
+        IReadOnlyList<AuditRule> rules = string.IsNullOrWhiteSpace(stackName)
+            ? architectureRules
+            : await _engine.LoadRulesAsync(
+                architectureRulesPath,
+                stackName,
+                stackRootRulesPath: rulesPath);
 
         PrintRulesLoaded(rules);
 

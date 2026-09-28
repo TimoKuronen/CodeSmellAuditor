@@ -54,7 +54,7 @@ flowchart TB
 
 ### IRuleRepository
 
-Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.mdc` audit packs by default; reference `.md` manuals are excluded from runtime prompts. Compact excerpts keep prompts within local model context; report shape is owned by `AuditPromptBuilder`.
+Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.mdc` audit packs by default; reference `.md` manuals are excluded from runtime prompts. Compact excerpts keep prompts within local model context; report shape is owned by `AuditPromptBuilder`. Root `Rules/*.mdc` are stack-agnostic. Opt-in stack packs live under `Rules/Stacks/<name>/` (loaded only when `--stack` is set). Architecture packs under `Rules/Architecture/` are used by sniff-system.
 
 ### IAiOrchestrator
 
@@ -68,8 +68,8 @@ Assembles system instructions, rule excerpts, and source text. Enforces a charac
 
 Presentation-neutral domain API:
 
-1. `LoadRulesAsync` - load compact rules
-2. `EnumerateTargetFiles` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` - storage helpers
+1. `LoadRulesAsync` - load compact rules (optional stack name concatenates `Rules/Stacks/<name>/`)
+2. `EnumerateTargetFiles` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` / `ResolveStackRulesPath` - storage helpers
 3. `AuditFileAsync` - analyze one file, optional token callback, persist markdown report
 4. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
 5. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
@@ -92,8 +92,10 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 | Streaming token callback | Immediate feedback without Core knowing about the console |
 | Compact `.mdc` rules at runtime | Keeps prompt size within local model context |
 | Architecture rules under `Rules/Architecture/` | System audits do not inflate single-file prompts |
+| Stack packs under `Rules/Stacks/<name>/` | Unity (and future stacks) are opt-in via `--stack`; default packs stay stack-agnostic |
 | Bounded report template | Prevents reasoning models from consuming output budget |
 | Status line parsing | Deterministic pass/fail from `Status:` line |
+| Score is informational | Model-emitted qualitative signal; not used for exit codes or regression |
 | Env var for storage and model config | Portable across machines |
 
 ## Dependency direction
@@ -118,9 +120,17 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 |------|---------|----------|
 | `--model <name>` | Ollama model for this run | `CODESMELL_MODEL` wins when set |
 | `--storage <path>` | WorkstationStorage root | `CODESMELL_STORAGE` wins when set |
+| `--stack <name>` | Opt-in stack pack under `Rules/Stacks/<name>/` (e.g. `Unity`) | — |
 | `--manifest <path>` | Free-text architecture contract (sniff-system only) | — |
 | `--non-interactive` | Skip batch Enter wait | — |
 
 Flags may appear before or after `sniff` / `sniff-system`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
 
-Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Sniff-system loads only `Rules/Architecture/*.mdc`, uses `AuditEngine.AuditSystemAsync` / `IAiOrchestrator.AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage`; `-System` and `-Manifest` map to `sniff-system`.
+Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Optional `--stack` concatenates `Rules/Stacks/<name>/*.mdc` onto that set. Sniff-system loads only `Rules/Architecture/*.mdc` (plus optional stack packs from `Rules/Stacks/`), uses `AuditEngine.AuditSystemAsync` / `IAiOrchestrator.AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage` / `-Stack`; `-System` and `-Manifest` map to `sniff-system`.
+
+### Report contract
+
+| Field | Role |
+|-------|------|
+| `Status:` | Sole pass/fail signal (`COMPLIANT` or `REVIEW REQUIRED`). Parsed by the CLI for exit codes. |
+| `Score:` | Rough qualitative signal for that run only. Model-emitted, non-deterministic; not a regression metric. Prefer Status and Top Findings over Score deltas between runs. |

@@ -113,9 +113,14 @@ IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
 var engine = new AuditEngine(repository, aiService);
 var host = new CliAuditHost(engine);
 
+if (!string.IsNullOrWhiteSpace(cliArgs.Stack))
+{
+    AnsiConsole.MarkupLine($"[grey]Stack pack:[/] [cyan]{Markup.Escape(cliArgs.Stack)}[/]");
+}
+
 if (cliArgs.Mode == CliMode.Batch)
 {
-    AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath);
+    AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath, cliArgs.Stack);
     Environment.ExitCode = batchResult.ExitCode;
     AnsiConsole.MarkupLine(
         batchResult.AllPassed
@@ -132,12 +137,13 @@ try
         AuditRunResult systemResult = await host.RunSniffSystemAsync(
             rulesPath,
             cliArgs.SniffPaths,
-            cliArgs.Manifest);
+            cliArgs.Manifest,
+            cliArgs.Stack);
         Environment.ExitCode = systemResult.ExitCode;
         return;
     }
 
-    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths);
+    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths, cliArgs.Stack);
     Environment.ExitCode = sniffResult.ExitCode;
 }
 catch (Exception ex) when (ex is FileNotFoundException or ArgumentException or DirectoryNotFoundException or InvalidOperationException)

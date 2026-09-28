@@ -20,6 +20,14 @@ public record AuditConfiguration(
 
 public static class AuditPromptBuilder
 {
+    private const string GroundingRules = """
+        Grounding rules:
+        - Only report a finding if a concrete symbol, member, or pattern for it is visible in the provided source text.
+        - Do not assume frameworks, infrastructure, or patterns not referenced in the source (Unity types, UniTask, ScriptableObject, DI containers, service locators) unless the source actually names them.
+        - A single file may be one part of a larger system already wired elsewhere; claims that depend on code you cannot see (for example "no DI" or "unclear composition") belong under Missing Context as an open question, never under Top Findings as an asserted violation.
+        - Each Top Findings bullet must name the exact method, property, or field it concerns.
+        """;
+
     private const string OutputTemplate = """
         Output ONLY the final report in this exact format. No analysis traces, no reasoning, no preamble.
 
@@ -40,6 +48,7 @@ public static class AuditPromptBuilder
         Contract rules:
         - The Status line must appear exactly once and use EXACTLY one of: COMPLIANT or REVIEW REQUIRED (nothing else on that line after Status:).
         - The Score line must appear exactly once as an integer from 0 to 100.
+        - Score is a rough qualitative signal for this run only, not a regression metric; do not imply meaningful change between runs from a small Score delta; base Score primarily on the count and severity of this run's own Top Findings.
         - Emit Status, Score, and Top Findings first. If the output budget is tight, omit Missing Context and/or Recommended Next Step rather than truncating or omitting Status.
         """;
 
@@ -57,6 +66,8 @@ public static class AuditPromptBuilder
             builder.AppendLine();
         }
 
+        builder.AppendLine(GroundingRules);
+        builder.AppendLine();
         builder.AppendLine(OutputTemplate);
         return builder.ToString();
     }

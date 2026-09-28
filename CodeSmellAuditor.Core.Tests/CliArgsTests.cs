@@ -15,6 +15,7 @@ public class CliArgsTests
         Assert.False(result.NonInteractive);
         Assert.Null(result.Model);
         Assert.Null(result.Storage);
+        Assert.Null(result.Stack);
     }
 
     [Fact]
@@ -97,13 +98,58 @@ public class CliArgsTests
         {
             "--model", "qwen3.5:4b",
             "--storage", @"D:\Storage",
+            "--stack", "Unity",
             "--non-interactive"
         });
 
         Assert.Equal(CliMode.Batch, result.Mode);
         Assert.Equal("qwen3.5:4b", result.Model);
         Assert.Equal(@"D:\Storage", result.Storage);
+        Assert.Equal("Unity", result.Stack);
         Assert.True(result.NonInteractive);
+    }
+
+    [Fact]
+    public void Parse_SniffWithStack_ParsesStack()
+    {
+        CliArgs result = CliArgs.Parse(new[]
+        {
+            "sniff",
+            "Program.cs",
+            "--stack",
+            "Unity"
+        });
+
+        Assert.Equal(CliMode.Sniff, result.Mode);
+        Assert.Equal("Unity", result.Stack);
+    }
+
+    [Fact]
+    public void Parse_SniffSystemWithStack_ParsesStack()
+    {
+        CliArgs result = CliArgs.Parse(new[]
+        {
+            "sniff-system",
+            "A.cs",
+            "B.cs",
+            "--stack",
+            "Unity",
+            "--manifest",
+            @"D:\manifest.md"
+        });
+
+        Assert.Equal(CliMode.SniffSystem, result.Mode);
+        Assert.Equal("Unity", result.Stack);
+        Assert.Equal(@"D:\manifest.md", result.Manifest);
+    }
+
+    [Fact]
+    public void Parse_StackMissingValue_Throws()
+    {
+        ArgumentException ex = Assert.Throws<ArgumentException>(
+            () => CliArgs.Parse(new[] { "--stack" }));
+
+        Assert.Contains("--stack requires a value", ex.Message);
     }
 
     [Fact]

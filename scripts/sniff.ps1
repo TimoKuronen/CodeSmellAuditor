@@ -6,6 +6,8 @@ param(
 
     [string]$Storage,
 
+    [string]$Stack,
+
     [switch]$System,
 
     [string]$Manifest
@@ -64,6 +66,9 @@ if (-not [string]::IsNullOrWhiteSpace($Model)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($Storage)) {
     $cliArgs += @("--storage", $Storage)
+}
+if (-not [string]::IsNullOrWhiteSpace($Stack)) {
+    $cliArgs += @("--stack", $Stack)
 }
 if (-not [string]::IsNullOrWhiteSpace($absoluteManifest)) {
     $cliArgs += @("--manifest", $absoluteManifest)

@@ -21,6 +21,9 @@ public class SystemAuditPromptBuilderTests
         Assert.Contains("## Manifest Conformance", prompt);
         Assert.Contains("## Cross-File Findings", prompt);
         Assert.Contains("REVIEW REQUIRED", prompt);
+        Assert.Contains("Grounding rules:", prompt);
+        Assert.Contains("visible in the provided source files", prompt);
+        Assert.Contains("not a regression metric", prompt);
     }
 
     [Fact]

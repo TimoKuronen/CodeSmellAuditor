@@ -22,6 +22,10 @@ public class AuditPromptBuilderTests
         Assert.Contains("EXACTLY one of", prompt);
         Assert.Contains("omit Missing Context", prompt);
         Assert.Contains("No analysis traces", prompt);
+        Assert.Contains("Grounding rules:", prompt);
+        Assert.Contains("visible in the provided source text", prompt);
+        Assert.Contains("Missing Context as an open question", prompt);
+        Assert.Contains("not a regression metric", prompt);
     }
 
     [Fact]

@@ -12,10 +12,11 @@ This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the 
 ## Highlights
 
 - Single-file and multi-path `sniff` against local markdown rule packs (`.mdc`); batch mode via `WorkstationStorage/Targets/`
+- Opt-in stack packs via `--stack` (e.g. `Unity` under `Rules/Stacks/Unity/`); default packs stay stack-agnostic
 - `sniff-system` for two or more related files (optional `--manifest`) using `Rules/Architecture/` and one combined report
 - Local Ollama only — source stays on your machine
 - Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
-- Pass/fail from the report `Status:` line; batch and sniff set process exit codes (`0`/`1`)
+- Pass/fail from the report `Status:` line (exit codes `0`/`1`); `Score` is informational only (not a regression metric)
 - Layered Core / Cli with interfaces for rule loading and AI orchestration
 - xUnit tests (fakes; no Ollama in CI) and Ubuntu GitHub Actions
 
