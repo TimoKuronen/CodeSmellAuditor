@@ -58,7 +58,7 @@ Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.md
 
 ### IAiOrchestrator
 
-Sends source code and rules to an AI backend and returns an `AuditReport`. `OllamaAiOrchestrator` streams tokens from Ollama `/api/chat` with a bounded output template.
+Sends source code and rules to an AI backend and returns an `AuditReport`. Supports single-file `AnalyzeCodeAsync` and multi-file `AnalyzeSystemAsync`. `OllamaAiOrchestrator` streams tokens from Ollama `/api/chat` with a shared request helper and bounded output templates.
 
 ### AuditPromptBuilder
 
@@ -69,13 +69,18 @@ Assembles system instructions, rule excerpts, and source text. Enforces a charac
 Presentation-neutral domain API:
 
 1. `LoadRulesAsync` - load compact rules
-2. `EnumerateTargetFiles` / `ResolveReportsDirectory` - storage helpers
+2. `EnumerateTargetFiles` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` - storage helpers
 3. `AuditFileAsync` - analyze one file, optional token callback, persist markdown report
-4. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
+4. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
+5. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
+
+### SystemAuditPromptBuilder
+
+Assembles architecture-mode system/user prompts (manifest + multi-file sources) with a larger character budget via `AuditConfiguration.ForSystemAudit`. Single-file prompts stay in `AuditPromptBuilder`.
 
 ### CliAuditHost
 
-Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path.
+Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path. `RunSniffSystemAsync` uses one Status wrap for the whole combined call.
 
 ## Design decisions
 
@@ -83,9 +88,10 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 |----------|-----------|
 | Interfaces for rules and AI | Swap rule packs or cloud API without changing engine |
 | Cli owns Status wrapping | Spectre Status must wrap the await; presentation stays out of Core |
-| File-level Core API | Keeps Core modular; Cli drives one or more files via sniff while Core stays per-file |
+| File-level Core API | Keeps Core modular; Cli drives one or more files via sniff while Core stays per-file; sniff-system is an explicit multi-file sibling API |
 | Streaming token callback | Immediate feedback without Core knowing about the console |
 | Compact `.mdc` rules at runtime | Keeps prompt size within local model context |
+| Architecture rules under `Rules/Architecture/` | System audits do not inflate single-file prompts |
 | Bounded report template | Prevents reasoning models from consuming output budget |
 | Status line parsing | Deterministic pass/fail from `Status:` line |
 | Env var for storage and model config | Portable across machines |
@@ -104,6 +110,7 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 |------|------------|--------|---------------|
 | Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1`; Enter-to-exit unless `--non-interactive` |
 | Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; pass/fail summary; exit `0`/`1` from aggregate pass/fail |
+| Sniff-system | `sniff-system path\to\A.cs path\to\B.cs [...]` | two or more external paths; optional `--manifest` | one combined architecture report; no Enter wait; exit `0`/`1` |
 
 ### Shared options
 
@@ -111,8 +118,9 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 |------|---------|----------|
 | `--model <name>` | Ollama model for this run | `CODESMELL_MODEL` wins when set |
 | `--storage <path>` | WorkstationStorage root | `CODESMELL_STORAGE` wins when set |
+| `--manifest <path>` | Free-text architecture contract (sniff-system only) | — |
 | `--non-interactive` | Skip batch Enter wait | — |
 
-Flags may appear before or after `sniff`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
+Flags may appear before or after `sniff` / `sniff-system`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
 
-Both modes reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync`. Rules and reports always come from auditor storage; sniff never copies into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards one or more `-Target` paths plus optional `-Model` / `-Storage` to the CLI.
+Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Sniff-system loads only `Rules/Architecture/*.mdc`, uses `AuditEngine.AuditSystemAsync` / `IAiOrchestrator.AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage`; `-System` and `-Manifest` map to `sniff-system`.

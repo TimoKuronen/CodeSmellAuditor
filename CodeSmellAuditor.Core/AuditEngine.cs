@@ -22,6 +22,11 @@ public class AuditEngine
         return (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
     }
 
+    public static string ResolveArchitectureRulesPath(string rulesPath)
+    {
+        return Path.Combine(rulesPath, "Architecture");
+    }
+
     public static string ResolveReportsDirectory(string rulesPath)
     {
         string basePath = Path.GetDirectoryName(rulesPath.TrimEnd(Path.DirectorySeparatorChar))
@@ -64,6 +69,55 @@ public class AuditEngine
         return new FileAuditResult(fileName, writtenFilePath, auditReport.HasPassed);
     }
 
+    public async Task<FileAuditResult> AuditSystemAsync(
+        IReadOnlyList<string> filePaths,
+        string? manifestText,
+        IReadOnlyList<AuditRule> rules,
+        string reportsDirectoryPath,
+        Action<string>? onTokenReceived = null)
+    {
+        if (filePaths.Count < 2)
+        {
+            throw new ArgumentException("System audit requires at least two .cs file paths.", nameof(filePaths));
+        }
+
+        var sources = new List<SourceFile>(filePaths.Count);
+        var fileNames = new List<string>(filePaths.Count);
+
+        foreach (string filePath in filePaths)
+        {
+            string absolutePath = Path.GetFullPath(filePath);
+            if (!File.Exists(absolutePath))
+            {
+                throw new FileNotFoundException($"System audit target not found: {absolutePath}", absolutePath);
+            }
+
+            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"System audit path must be a .cs file: {absolutePath}");
+            }
+
+            string content = await File.ReadAllTextAsync(absolutePath);
+            sources.Add(new SourceFile(absolutePath, content));
+            fileNames.Add(Path.GetFileName(absolutePath));
+        }
+
+        AuditReport auditReport = await _aiService.AnalyzeSystemAsync(
+            sources,
+            manifestText,
+            rules,
+            token => onTokenReceived?.Invoke(token));
+
+        string targetLabel = string.Join(", ", fileNames);
+        string writtenFilePath = await SaveReportToFileSystemAsync(
+            reportsDirectoryPath,
+            SystemAuditIdentity.ReportBaseName + ".cs",
+            auditReport.MarkdownCritique,
+            targetLabel);
+
+        return new FileAuditResult(SystemAuditIdentity.ReportBaseName, writtenFilePath, auditReport.HasPassed);
+    }
+
     public async Task<AuditRunResult> RunBatchAsync(string rulesPath, string targetsPath)
     {
         IReadOnlyList<AuditRule> rules = await LoadRulesAsync(rulesPath);
@@ -87,7 +141,8 @@ public class AuditEngine
     private static async Task<string> SaveReportToFileSystemAsync(
         string targetFolder,
         string targetFileName,
-        string markdownContent)
+        string markdownContent,
+        string? targetFileLabel = null)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string cleanFileName = $"{Path.GetFileNameWithoutExtension(targetFileName)}_{timestamp}_Critique.md";
@@ -95,7 +150,7 @@ public class AuditEngine
 
         var documentBuilder = new StringBuilder();
         documentBuilder.AppendLine("---");
-        documentBuilder.AppendLine($"TargetFile: {targetFileName}");
+        documentBuilder.AppendLine($"TargetFile: {targetFileLabel ?? targetFileName}");
         documentBuilder.AppendLine($"AuditDate: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         documentBuilder.AppendLine("Tags: [code-smell-audit]");
         documentBuilder.AppendLine("---");

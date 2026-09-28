@@ -11,4 +11,10 @@ public interface IAiOrchestrator
         SourceFile file,
         IEnumerable<AuditRule> rules,
         Action<string> onTokenReceived);
+
+    Task<AuditReport> AnalyzeSystemAsync(
+        IReadOnlyList<SourceFile> files,
+        string? manifestText,
+        IEnumerable<AuditRule> rules,
+        Action<string> onTokenReceived);
 }
