@@ -13,13 +13,15 @@ public sealed record CliArgs(
     string? Model = null,
     string? Storage = null,
     bool NonInteractive = false,
-    string? Manifest = null)
+    string? Manifest = null,
+    string? Stack = null)
 {
     public static CliArgs Parse(string[] args)
     {
         string? model = null;
         string? storage = null;
         string? manifest = null;
+        string? stack = null;
         bool nonInteractive = false;
         var positional = new List<string>();
 
@@ -45,6 +47,12 @@ public sealed record CliArgs(
                 continue;
             }
 
+            if (string.Equals(token, "--stack", StringComparison.OrdinalIgnoreCase))
+            {
+                stack = RequireOptionValue(args, ref i, "--stack");
+                continue;
+            }
+
             if (string.Equals(token, "--non-interactive", StringComparison.OrdinalIgnoreCase))
             {
                 nonInteractive = true;
@@ -54,7 +62,7 @@ public sealed record CliArgs(
             if (token.StartsWith('-'))
             {
                 throw new ArgumentException(
-                    $"Unknown option '{token}'. Supported: --model, --storage, --manifest, --non-interactive.");
+                    $"Unknown option '{token}'. Supported: --model, --storage, --manifest, --stack, --non-interactive.");
             }
 
             positional.Add(token);
@@ -67,7 +75,7 @@ public sealed record CliArgs(
                 throw new ArgumentException("--manifest is only valid with sniff-system.");
             }
 
-            return new CliArgs(CliMode.Batch, Array.Empty<string>(), model, storage, nonInteractive);
+            return new CliArgs(CliMode.Batch, Array.Empty<string>(), model, storage, nonInteractive, Stack: stack);
         }
 
         if (string.Equals(positional[0], "sniff", StringComparison.OrdinalIgnoreCase))
@@ -78,13 +86,13 @@ public sealed record CliArgs(
             }
 
             IReadOnlyList<string> sniffPaths = ParseCsPaths(positional, minCount: 1, commandName: "sniff");
-            return new CliArgs(CliMode.Sniff, sniffPaths, model, storage, nonInteractive);
+            return new CliArgs(CliMode.Sniff, sniffPaths, model, storage, nonInteractive, Stack: stack);
         }
 
         if (string.Equals(positional[0], "sniff-system", StringComparison.OrdinalIgnoreCase))
         {
             IReadOnlyList<string> systemPaths = ParseCsPaths(positional, minCount: 2, commandName: "sniff-system");
-            return new CliArgs(CliMode.SniffSystem, systemPaths, model, storage, nonInteractive, manifest);
+            return new CliArgs(CliMode.SniffSystem, systemPaths, model, storage, nonInteractive, manifest, stack);
         }
 
         throw new ArgumentException(

@@ -22,9 +22,69 @@ public class AuditEngine
         return (await _ruleRepository.GetActiveRulesAsync(rulesPath)).ToList();
     }
 
+    /// <summary>
+    /// Loads base rules from <paramref name="rulesPath"/>, then optionally concatenates
+    /// an opt-in stack pack under Rules/Stacks/{stackName}.
+    /// When <paramref name="stackRootRulesPath"/> is set (system audits), the stack folder
+    /// is resolved from that root instead of from the architecture rules folder.
+    /// </summary>
+    public async Task<IReadOnlyList<AuditRule>> LoadRulesAsync(
+        string rulesPath,
+        string? stackName,
+        string? stackRootRulesPath = null)
+    {
+        var combined = new List<AuditRule>(await LoadRulesAsync(rulesPath));
+
+        if (string.IsNullOrWhiteSpace(stackName))
+        {
+            return combined;
+        }
+
+        string rootForStack = stackRootRulesPath ?? rulesPath;
+        string stackRulesPath = ResolveStackRulesPath(rootForStack, stackName);
+        if (!Directory.Exists(stackRulesPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Stack rules folder not found: {stackRulesPath}");
+        }
+
+        IReadOnlyList<AuditRule> stackRules =
+            (await _ruleRepository.GetActiveRulesAsync(stackRulesPath)).ToList();
+
+        if (stackRules.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"No rule packs found under stack folder: {stackRulesPath}");
+        }
+
+        combined.AddRange(stackRules);
+        return combined;
+    }
+
     public static string ResolveArchitectureRulesPath(string rulesPath)
     {
         return Path.Combine(rulesPath, "Architecture");
+    }
+
+    public static string ResolveStackRulesPath(string rulesPath, string stackName)
+    {
+        if (string.IsNullOrWhiteSpace(stackName))
+        {
+            throw new ArgumentException("Stack name must not be empty.", nameof(stackName));
+        }
+
+        string trimmed = stackName.Trim();
+        if (trimmed.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || trimmed.Contains('/')
+            || trimmed.Contains('\\')
+            || trimmed.Contains("..", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Invalid stack name '{stackName}'. Use a single folder name such as Unity.",
+                nameof(stackName));
+        }
+
+        return Path.Combine(rulesPath, "Stacks", trimmed);
     }
 
     public static string ResolveReportsDirectory(string rulesPath)

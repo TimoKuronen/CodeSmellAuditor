@@ -8,6 +8,14 @@ namespace CodeSmellAuditor.Core;
 /// </summary>
 public static class SystemAuditPromptBuilder
 {
+    private const string GroundingRules = """
+        Grounding rules:
+        - Only report a finding if a concrete symbol, member, or pattern for it is visible in the provided source files.
+        - Do not assume frameworks, infrastructure, or patterns not referenced in the provided sources (Unity types, UniTask, ScriptableObject, DI containers, service locators) unless the sources actually name them.
+        - Claims that depend on code outside the audited set belong under Per-File Notes or Recommended Next Step as open questions, never as asserted Cross-File Findings.
+        - Prefer findings that name the files and exact members involved.
+        """;
+
     private const string OutputTemplate = """
         Output ONLY the final report in this exact format. No analysis traces, no reasoning, no preamble.
 
@@ -31,6 +39,7 @@ public static class SystemAuditPromptBuilder
         Contract rules:
         - The Status line must appear exactly once and use EXACTLY one of: COMPLIANT or REVIEW REQUIRED (nothing else on that line after Status:).
         - The Score line must appear exactly once as an integer from 0 to 100.
+        - Score is a rough qualitative signal for this run only, not a regression metric; do not imply meaningful change between runs from a small Score delta; base Score primarily on the count and severity of this run's own findings.
         - Emit Status, Score, Manifest Conformance, and Cross-File Findings first. If the output budget is tight, omit Per-File Notes and/or Recommended Next Step rather than truncating or omitting Status.
         - Judge the files against the stated architecture contract and the governance rules. Do not invent a different architecture; flag conflicts with the given contract.
         """;
@@ -49,6 +58,8 @@ public static class SystemAuditPromptBuilder
             builder.AppendLine();
         }
 
+        builder.AppendLine(GroundingRules);
+        builder.AppendLine();
         builder.AppendLine(OutputTemplate);
         return builder.ToString();
     }

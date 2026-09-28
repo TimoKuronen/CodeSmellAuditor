@@ -172,6 +172,132 @@ public class AuditEngineTests
         Assert.Equal(Path.Combine(@"D:\Storage\Rules", "Architecture"), resolved);
     }
 
+    [Fact]
+    public void ResolveStackRulesPath_AppendsStacksFolderAndName()
+    {
+        string resolved = AuditEngine.ResolveStackRulesPath(@"D:\Storage\Rules", "Unity");
+
+        Assert.Equal(Path.Combine(@"D:\Storage\Rules", "Stacks", "Unity"), resolved);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ResolveStackRulesPath_RejectsEmptyName(string stackName)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            AuditEngine.ResolveStackRulesPath(@"D:\Storage\Rules", stackName));
+    }
+
+    [Theory]
+    [InlineData("../Unity")]
+    [InlineData("Unity/Extra")]
+    [InlineData(@"Unity\Extra")]
+    public void ResolveStackRulesPath_RejectsPathTraversal(string stackName)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            AuditEngine.ResolveStackRulesPath(@"D:\Storage\Rules", stackName));
+    }
+
+    [Fact]
+    public async Task LoadRulesAsync_WithStack_ConcatenatesBaseAndStackRules()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string stackPath = Path.Combine(rulesPath, "Stacks", "Unity");
+            Directory.CreateDirectory(rulesPath);
+            Directory.CreateDirectory(stackPath);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(rulesPath, "base.mdc"),
+                "Base rule body.");
+            await File.WriteAllTextAsync(
+                Path.Combine(stackPath, "unity.mdc"),
+                "Unity rule body.");
+
+            var engine = new AuditEngine(
+                new MarkdownRuleRepository(),
+                new FakeAiOrchestrator("Status: COMPLIANT"));
+
+            IReadOnlyList<AuditRule> baseOnly = await engine.LoadRulesAsync(rulesPath);
+            IReadOnlyList<AuditRule> withStack = await engine.LoadRulesAsync(rulesPath, "Unity");
+
+            Assert.Single(baseOnly);
+            Assert.Equal(2, withStack.Count);
+            Assert.Contains(withStack, r => r.Name == "base.mdc");
+            Assert.Contains(withStack, r => r.Name == "unity.mdc");
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadRulesAsync_WithStack_UsesStackRootWhenProvided()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string architecturePath = Path.Combine(rulesPath, "Architecture");
+            string stackPath = Path.Combine(rulesPath, "Stacks", "Unity");
+            Directory.CreateDirectory(architecturePath);
+            Directory.CreateDirectory(stackPath);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(architecturePath, "arch.mdc"),
+                "Architecture rule.");
+            await File.WriteAllTextAsync(
+                Path.Combine(stackPath, "unity.mdc"),
+                "Unity rule.");
+
+            var engine = new AuditEngine(
+                new MarkdownRuleRepository(),
+                new FakeAiOrchestrator("Status: COMPLIANT"));
+
+            IReadOnlyList<AuditRule> rules = await engine.LoadRulesAsync(
+                architecturePath,
+                "Unity",
+                stackRootRulesPath: rulesPath);
+
+            Assert.Equal(2, rules.Count);
+            Assert.Contains(rules, r => r.Name == "arch.mdc");
+            Assert.Contains(rules, r => r.Name == "unity.mdc");
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadRulesAsync_WithMissingStack_Throws()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            Directory.CreateDirectory(rulesPath);
+
+            var engine = new AuditEngine(
+                new MarkdownRuleRepository(),
+                new FakeAiOrchestrator("Status: COMPLIANT"));
+
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
+                engine.LoadRulesAsync(rulesPath, "Unity"));
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
     private static string CreateTempWorkspace()
     {
         return Path.Combine(Path.GetTempPath(), $"codesmell-engine-{Guid.NewGuid():N}");

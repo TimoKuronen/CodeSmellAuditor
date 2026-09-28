@@ -42,6 +42,8 @@ Score: 72
 Extract spawn planning into a dedicated planner class and inject it as a single dependency.
 ```
 
+`Status:` is the only pass/fail signal used by the CLI. `Score:` is a rough qualitative signal for that run only - not a regression metric; prefer Status and Top Findings over Score deltas between runs.
+
 ## Interrupted reports
 
 If the model exceeds its output budget, the report may be truncated.
