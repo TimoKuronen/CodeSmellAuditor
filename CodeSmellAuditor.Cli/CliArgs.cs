@@ -3,7 +3,8 @@ namespace CodeSmellAuditor.Cli;
 public enum CliMode
 {
     Batch,
-    Sniff
+    Sniff,
+    SniffSystem
 }
 
 public sealed record CliArgs(
@@ -11,12 +12,14 @@ public sealed record CliArgs(
     IReadOnlyList<string> SniffPaths,
     string? Model = null,
     string? Storage = null,
-    bool NonInteractive = false)
+    bool NonInteractive = false,
+    string? Manifest = null)
 {
     public static CliArgs Parse(string[] args)
     {
         string? model = null;
         string? storage = null;
+        string? manifest = null;
         bool nonInteractive = false;
         var positional = new List<string>();
 
@@ -36,6 +39,12 @@ public sealed record CliArgs(
                 continue;
             }
 
+            if (string.Equals(token, "--manifest", StringComparison.OrdinalIgnoreCase))
+            {
+                manifest = RequireOptionValue(args, ref i, "--manifest");
+                continue;
+            }
+
             if (string.Equals(token, "--non-interactive", StringComparison.OrdinalIgnoreCase))
             {
                 nonInteractive = true;
@@ -45,7 +54,7 @@ public sealed record CliArgs(
             if (token.StartsWith('-'))
             {
                 throw new ArgumentException(
-                    $"Unknown option '{token}'. Supported: --model, --storage, --non-interactive.");
+                    $"Unknown option '{token}'. Supported: --model, --storage, --manifest, --non-interactive.");
             }
 
             positional.Add(token);
@@ -53,38 +62,63 @@ public sealed record CliArgs(
 
         if (positional.Count == 0)
         {
+            if (!string.IsNullOrWhiteSpace(manifest))
+            {
+                throw new ArgumentException("--manifest is only valid with sniff-system.");
+            }
+
             return new CliArgs(CliMode.Batch, Array.Empty<string>(), model, storage, nonInteractive);
         }
 
-        if (!string.Equals(positional[0], "sniff", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(positional[0], "sniff", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(manifest))
+            {
+                throw new ArgumentException("--manifest is only valid with sniff-system.");
+            }
+
+            IReadOnlyList<string> sniffPaths = ParseCsPaths(positional, minCount: 1, commandName: "sniff");
+            return new CliArgs(CliMode.Sniff, sniffPaths, model, storage, nonInteractive);
+        }
+
+        if (string.Equals(positional[0], "sniff-system", StringComparison.OrdinalIgnoreCase))
+        {
+            IReadOnlyList<string> systemPaths = ParseCsPaths(positional, minCount: 2, commandName: "sniff-system");
+            return new CliArgs(CliMode.SniffSystem, systemPaths, model, storage, nonInteractive, manifest);
+        }
+
+        throw new ArgumentException(
+            $"Unknown command '{positional[0]}'. Use no args for Targets batch, sniff <path.cs> [...], or sniff-system <path.cs> <path.cs> [...].");
+    }
+
+    private static IReadOnlyList<string> ParseCsPaths(List<string> positional, int minCount, string commandName)
+    {
+        if (positional.Count < minCount + 1)
         {
             throw new ArgumentException(
-                $"Unknown command '{positional[0]}'. Use no args for Targets batch, or: sniff <path-to-file.cs> [more.cs...]");
+                minCount == 1
+                    ? $"{commandName} requires at least one path to a .cs file."
+                    : $"{commandName} requires at least two paths to .cs files.");
         }
 
-        if (positional.Count < 2)
-        {
-            throw new ArgumentException("sniff requires at least one path to a .cs file.");
-        }
-
-        var sniffPaths = new List<string>();
+        var paths = new List<string>();
         for (int i = 1; i < positional.Count; i++)
         {
             string path = positional[i].Trim().Trim('"');
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentException("sniff path arguments must not be empty.");
+                throw new ArgumentException($"{commandName} path arguments must not be empty.");
             }
 
             if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             {
-                throw new ArgumentException($"sniff path must be a .cs file: {path}");
+                throw new ArgumentException($"{commandName} path must be a .cs file: {path}");
             }
 
-            sniffPaths.Add(path);
+            paths.Add(path);
         }
 
-        return new CliArgs(CliMode.Sniff, sniffPaths, model, storage, nonInteractive);
+        return paths;
     }
 
     private static string RequireOptionValue(string[] args, ref int index, string optionName)

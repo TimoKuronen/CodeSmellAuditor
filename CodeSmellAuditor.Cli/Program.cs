@@ -91,7 +91,7 @@ static string ResolveModelName(string? cliModel)
 
 static void WaitForEnterIfInteractive(CliArgs parsed)
 {
-    if (parsed.NonInteractive || parsed.Mode == CliMode.Sniff)
+    if (parsed.NonInteractive || parsed.Mode is CliMode.Sniff or CliMode.SniffSystem)
     {
         return;
     }
@@ -100,10 +100,13 @@ static void WaitForEnterIfInteractive(CliArgs parsed)
     Console.ReadLine();
 }
 
-var auditConfig = new AuditConfiguration(
-    ModelName: ResolveModelName(cliArgs.Model),
-    NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
-    NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
+string modelName = ResolveModelName(cliArgs.Model);
+AuditConfiguration auditConfig = cliArgs.Mode == CliMode.SniffSystem
+    ? AuditConfiguration.ForSystemAudit(modelName)
+    : new AuditConfiguration(
+        ModelName: modelName,
+        NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
+        NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
 
 IRuleRepository repository = new MarkdownRuleRepository();
 IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
@@ -124,10 +127,20 @@ if (cliArgs.Mode == CliMode.Batch)
 
 try
 {
+    if (cliArgs.Mode == CliMode.SniffSystem)
+    {
+        AuditRunResult systemResult = await host.RunSniffSystemAsync(
+            rulesPath,
+            cliArgs.SniffPaths,
+            cliArgs.Manifest);
+        Environment.ExitCode = systemResult.ExitCode;
+        return;
+    }
+
     AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths);
     Environment.ExitCode = sniffResult.ExitCode;
 }
-catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)
+catch (Exception ex) when (ex is FileNotFoundException or ArgumentException or DirectoryNotFoundException or InvalidOperationException)
 {
     AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
     Environment.ExitCode = 1;

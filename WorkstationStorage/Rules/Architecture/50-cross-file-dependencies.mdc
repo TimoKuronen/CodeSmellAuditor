@@ -1,0 +1,30 @@
+---
+description: Cross-file architecture checks for sniff-system (CodeSmellAuditor)
+alwaysApply: false
+---
+
+# Cross-file dependencies
+
+RulePackVersion: 1.0.0
+Mode: sniff-system
+
+## MUST
+
+- Respect the stated load or init order in the architecture manifest when one is provided.
+- Flag circular initialization or mutual construction between peer systems.
+- One clear owner per shared mutable concern across the audited files.
+- Do not reach upward from a lower-layer scene or system into a higher-layer owner when the manifest defines layers.
+- Domain or core logic must not depend on UI types across the audited set.
+
+## Audit focus
+
+1. Manifest load-order or responsibility violations
+2. Circular init or wiring between files
+3. Split ownership of the same concern across files
+4. Layer or scene direction violations (lower depending on higher)
+5. Hidden static mutable coupling across the set
+
+## Guidance
+
+- Prefer findings that name the files involved.
+- If no manifest is provided, still flag clear circular or layer violations; do not invent a preferred architecture.

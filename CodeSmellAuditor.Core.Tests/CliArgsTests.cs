@@ -143,4 +143,56 @@ public class CliArgsTests
 
         Assert.Contains("Unknown option", ex.Message);
     }
+
+    [Fact]
+    public void Parse_SniffSystemWithTwoPaths_ReturnsSniffSystemMode()
+    {
+        CliArgs result = CliArgs.Parse(new[] { "sniff-system", "A.cs", "B.cs" });
+
+        Assert.Equal(CliMode.SniffSystem, result.Mode);
+        Assert.Equal(new[] { "A.cs", "B.cs" }, result.SniffPaths);
+        Assert.Null(result.Manifest);
+    }
+
+    [Fact]
+    public void Parse_SniffSystemWithManifest_ParsesManifest()
+    {
+        CliArgs result = CliArgs.Parse(new[]
+        {
+            "sniff-system",
+            "A.cs",
+            "B.cs",
+            "--manifest",
+            @"D:\manifest.md"
+        });
+
+        Assert.Equal(CliMode.SniffSystem, result.Mode);
+        Assert.Equal(@"D:\manifest.md", result.Manifest);
+    }
+
+    [Fact]
+    public void Parse_SniffSystemOnePath_Throws()
+    {
+        ArgumentException ex = Assert.Throws<ArgumentException>(
+            () => CliArgs.Parse(new[] { "sniff-system", "A.cs" }));
+
+        Assert.Contains("at least two paths", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_ManifestOnSniff_Throws()
+    {
+        ArgumentException ex = Assert.Throws<ArgumentException>(
+            () => CliArgs.Parse(new[] { "sniff", "A.cs", "--manifest", "m.md" }));
+
+        Assert.Contains("--manifest is only valid with sniff-system", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_SniffSystemIsCaseInsensitive()
+    {
+        CliArgs result = CliArgs.Parse(new[] { "SNIFF-SYSTEM", "A.cs", "B.cs" });
+
+        Assert.Equal(CliMode.SniffSystem, result.Mode);
+    }
 }

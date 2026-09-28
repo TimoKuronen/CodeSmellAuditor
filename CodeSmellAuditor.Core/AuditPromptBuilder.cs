@@ -7,6 +7,15 @@ public record AuditConfiguration(
     int MaxInputCharacters = 24000)
 {
     public const string DefaultModelName = "qwen3.5:4b";
+
+    /// <summary>
+    /// Larger local-model budget for multi-file system audits.
+    /// </summary>
+    public static AuditConfiguration ForSystemAudit(string modelName) => new(
+        ModelName: modelName,
+        NumCtx: 16384,
+        NumPredict: 2000,
+        MaxInputCharacters: 48000);
 }
 
 public static class AuditPromptBuilder
