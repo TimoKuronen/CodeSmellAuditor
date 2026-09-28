@@ -29,7 +29,7 @@ public class SystemAuditPromptBuilderTests
         var files = new List<SourceFile>
         {
             new(@"C:\proj\Core.cs", "class Core {}"),
-            new(@"C:\proj\Ui.cs", "class Ui {}")
+            new("/proj/Ui.cs", "class Ui {}")
         };
 
         string prompt = SystemAuditPromptBuilder.BuildUserPrompt(files, "Core before Ui");
@@ -40,6 +40,15 @@ public class SystemAuditPromptBuilderTests
         Assert.Contains("--- File: Ui.cs ---", prompt);
         Assert.Contains("class Core {}", prompt);
         Assert.Contains("class Ui {}", prompt);
+    }
+
+    [Theory]
+    [InlineData(@"C:\proj\Core.cs", "Core.cs")]
+    [InlineData("/proj/Core.cs", "Core.cs")]
+    [InlineData("Core.cs", "Core.cs")]
+    public void GetDisplayFileName_IsCrossPlatform(string path, string expected)
+    {
+        Assert.Equal(expected, SystemAuditPromptBuilder.GetDisplayFileName(path));
     }
 
     [Fact]

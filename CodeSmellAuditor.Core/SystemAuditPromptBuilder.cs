@@ -80,7 +80,7 @@ public static class SystemAuditPromptBuilder
         builder.AppendLine("## Source Files");
         foreach (SourceFile file in files)
         {
-            string fileName = Path.GetFileName(file.FilePath);
+            string fileName = GetDisplayFileName(file.FilePath);
             builder.AppendLine($"--- File: {fileName} ---");
             builder.AppendLine("```csharp");
             builder.AppendLine(file.Content);
@@ -89,6 +89,16 @@ public static class SystemAuditPromptBuilder
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Path.GetFileName is OS-sensitive; normalize separators so Windows-style paths
+    /// still yield a short file name when running on Linux (e.g. CI).
+    /// </summary>
+    public static string GetDisplayFileName(string filePath)
+    {
+        string normalized = filePath.Replace('\\', '/');
+        return Path.GetFileName(normalized);
     }
 
     public static void ValidateBudget(string systemPrompt, string userPrompt, AuditConfiguration config)
