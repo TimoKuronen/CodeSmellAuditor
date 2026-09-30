@@ -41,7 +41,7 @@ public sealed class CliAuditHost
                 rules,
                 reportsDirectoryPath);
 
-            AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
+            PrintReportPath(result);
             fileResults.Add(result);
         }
 
@@ -58,27 +58,10 @@ public sealed class CliAuditHost
         IReadOnlyList<string> filePaths,
         string? stackName = null)
     {
-        if (filePaths.Count == 0)
-        {
-            throw new ArgumentException("sniff requires at least one path to a .cs file.");
-        }
-
-        var absolutePaths = new List<string>(filePaths.Count);
-        foreach (string filePath in filePaths)
-        {
-            string absolutePath = Path.GetFullPath(filePath);
-            if (!File.Exists(absolutePath))
-            {
-                throw new FileNotFoundException($"sniff target not found: {absolutePath}", absolutePath);
-            }
-
-            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException($"sniff path must be a .cs file: {absolutePath}");
-            }
-
-            absolutePaths.Add(absolutePath);
-        }
+        IReadOnlyList<string> absolutePaths = AuditEngine.ResolveExistingCsPaths(
+            filePaths,
+            minimumCount: 1,
+            commandName: "sniff");
 
         IReadOnlyList<AuditRule> rules = await _engine.LoadRulesAsync(rulesPath, stackName);
         PrintRulesLoaded(rules);
@@ -95,7 +78,7 @@ public sealed class CliAuditHost
                 rules,
                 reportsDirectoryPath);
 
-            AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
+            PrintReportPath(result);
             fileResults.Add(result);
         }
 
@@ -113,27 +96,10 @@ public sealed class CliAuditHost
         string? manifestPath,
         string? stackName = null)
     {
-        if (filePaths.Count < 2)
-        {
-            throw new ArgumentException("sniff-system requires at least two paths to .cs files.");
-        }
-
-        var absolutePaths = new List<string>(filePaths.Count);
-        foreach (string filePath in filePaths)
-        {
-            string absolutePath = Path.GetFullPath(filePath);
-            if (!File.Exists(absolutePath))
-            {
-                throw new FileNotFoundException($"sniff-system target not found: {absolutePath}", absolutePath);
-            }
-
-            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException($"sniff-system path must be a .cs file: {absolutePath}");
-            }
-
-            absolutePaths.Add(absolutePath);
-        }
+        IReadOnlyList<string> absolutePaths = AuditEngine.ResolveExistingCsPaths(
+            filePaths,
+            minimumCount: 2,
+            commandName: "sniff-system");
 
         string? manifestText = null;
         if (!string.IsNullOrWhiteSpace(manifestPath))
@@ -148,29 +114,7 @@ public sealed class CliAuditHost
             AnsiConsole.MarkupLine($"[grey]Manifest:[/] [cyan]{Markup.Escape(absoluteManifest)}[/]");
         }
 
-        string architectureRulesPath = AuditEngine.ResolveArchitectureRulesPath(rulesPath);
-        if (!Directory.Exists(architectureRulesPath))
-        {
-            throw new DirectoryNotFoundException(
-                $"Architecture rules folder not found: {architectureRulesPath}");
-        }
-
-        // Architecture packs are the primary rules for system audits; optional stack packs
-        // layer on from the root Rules/Stacks folder (not under Architecture/).
-        IReadOnlyList<AuditRule> architectureRules = await _engine.LoadRulesAsync(architectureRulesPath);
-        if (architectureRules.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"No architecture rule packs found under {architectureRulesPath}");
-        }
-
-        IReadOnlyList<AuditRule> rules = string.IsNullOrWhiteSpace(stackName)
-            ? architectureRules
-            : await _engine.LoadRulesAsync(
-                architectureRulesPath,
-                stackName,
-                stackRootRulesPath: rulesPath);
-
+        IReadOnlyList<AuditRule> rules = await _engine.LoadSystemRulesAsync(rulesPath, stackName);
         PrintRulesLoaded(rules);
 
         string reportsDirectoryPath = AuditEngine.ResolveReportsDirectory(rulesPath);
@@ -211,7 +155,7 @@ public sealed class CliAuditHost
         FileAuditResult systemResult = result
             ?? throw new InvalidOperationException("System audit did not produce a result.");
 
-        AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{systemResult.ReportPath}[/]\n");
+        PrintReportPath(systemResult);
 
         AuditRunResult runResult = new(new[] { systemResult });
         PrintBatchSummary(runResult);
@@ -268,6 +212,17 @@ public sealed class CliAuditHost
         }
 
         AnsiConsole.WriteLine();
+    }
+
+    private static void PrintReportPath(FileAuditResult result)
+    {
+        if (string.IsNullOrEmpty(result.ReportPath))
+        {
+            AnsiConsole.MarkupLine("[grey]└──[/] [yellow]No report saved (tool failure).[/]\n");
+            return;
+        }
+
+        AnsiConsole.MarkupLine($"[grey]└── Report saved:[/] [underline cyan]{result.ReportPath}[/]\n");
     }
 
     private static void PrintBatchSummary(AuditRunResult result)

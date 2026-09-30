@@ -16,14 +16,14 @@ This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the 
 - `sniff-system` for two or more related files (optional `--manifest`) using `Rules/Architecture/` and one combined report
 - Local Ollama only — source stays on your machine
 - Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
-- Pass/fail from the report `Status:` line (exit codes `0`/`1`); `Score` is informational only (not a regression metric)
+- Pass/fail from the report `Status:` line (exit `0`/`1`); tool/wiring failures exit `2` and skip report persistence; `Score` is informational only
 - Layered Core / Cli with interfaces for rule loading and AI orchestration
 - xUnit tests (fakes; no Ollama in CI) and Ubuntu GitHub Actions
 
 ## Architecture
 
 ```text
-Program.cs (composition root)
+Program.cs (composition root: HttpClient + config)
   -> MarkdownRuleRepository / OllamaAiOrchestrator
   -> AuditEngine
   -> CliAuditHost (batch + sniff + sniff-system)

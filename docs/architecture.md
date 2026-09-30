@@ -58,7 +58,7 @@ Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.md
 
 ### IAiOrchestrator
 
-Sends source code and rules to an AI backend and returns an `AuditReport`. Supports single-file `AnalyzeCodeAsync` and multi-file `AnalyzeSystemAsync`. `OllamaAiOrchestrator` streams tokens from Ollama `/api/chat` with a shared request helper and bounded output templates.
+Sends source code and rules to an AI backend and returns an `AuditReport` with an `AuditOutcome` (`Passed`, `ReviewRequired`, or `Failed`). Supports single-file `AnalyzeCodeAsync` and multi-file `AnalyzeSystemAsync`. `OllamaAiOrchestrator` takes an injected `HttpClient` (bound at the composition root) and streams tokens from Ollama `/api/chat` with bounded output templates. Transport, empty-response, and budget failures map to `Failed` and are not persisted as critiques.
 
 ### AuditPromptBuilder
 
@@ -69,10 +69,11 @@ Assembles system instructions, rule excerpts, and source text. Enforces a charac
 Presentation-neutral domain API:
 
 1. `LoadRulesAsync` - load compact rules (optional stack name concatenates `Rules/Stacks/<name>/`)
-2. `EnumerateTargetFiles` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` / `ResolveStackRulesPath` - storage helpers
-3. `AuditFileAsync` - analyze one file, optional token callback, persist markdown report
-4. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
-5. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
+2. `LoadSystemRulesAsync` - Architecture packs plus optional stack packs for sniff-system
+3. `EnumerateTargetFiles` / `ResolveExistingCsPaths` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` / `ResolveStackRulesPath` - storage helpers
+4. `AuditFileAsync` - analyze one file, optional token callback, persist markdown report when outcome is not `Failed`
+5. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
+6. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
 
 ### SystemAuditPromptBuilder
 
@@ -110,9 +111,9 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 | Mode | Invocation | Source | Exit behavior |
 |------|------------|--------|---------------|
-| Batch | no args | `WorkstationStorage/Targets/*.cs` | Pass/fail summary; exit `0`/`1`; Enter-to-exit unless `--non-interactive` |
-| Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; pass/fail summary; exit `0`/`1` from aggregate pass/fail |
-| Sniff-system | `sniff-system path\to\A.cs path\to\B.cs [...]` | two or more external paths; optional `--manifest` | one combined architecture report; no Enter wait; exit `0`/`1` |
+| Batch | no args | `WorkstationStorage/Targets/*.cs` | Summary; exit `0`/`1`/`2`; Enter-to-exit unless `--non-interactive` |
+| Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; exit `0`/`1`/`2` from aggregate outcome |
+| Sniff-system | `sniff-system path\to\A.cs path\to\B.cs [...]` | two or more external paths; optional `--manifest` | one combined architecture report; no Enter wait; exit `0`/`1`/`2` |
 
 ### Shared options
 
@@ -126,11 +127,20 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 Flags may appear before or after `sniff` / `sniff-system`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
 
-Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Optional `--stack` concatenates `Rules/Stacks/<name>/*.mdc` onto that set. Sniff-system loads only `Rules/Architecture/*.mdc` (plus optional stack packs from `Rules/Stacks/`), uses `AuditEngine.AuditSystemAsync` / `IAiOrchestrator.AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage` / `-Stack`; `-System` and `-Manifest` map to `sniff-system`.
+Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Optional `--stack` concatenates `Rules/Stacks/<name>/*.mdc` onto that set. Sniff-system uses `AuditEngine.LoadSystemRulesAsync` (Architecture packs plus optional stack packs), `AuditSystemAsync` / `AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report when the outcome is not `Failed`. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Wiring and missing-path errors at the CLI exit `2`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage` / `-Stack`; `-System` and `-Manifest` map to `sniff-system`.
 
 ### Report contract
 
 | Field | Role |
 |-------|------|
-| `Status:` | Sole pass/fail signal (`COMPLIANT` or `REVIEW REQUIRED`). Parsed by the CLI for exit codes. |
+| `Status:` | Sole model pass/fail signal (`COMPLIANT` or `REVIEW REQUIRED`). Maps to exit `0` or `1`. |
+| Tool failure | Ollama unreachable, empty response, budget exceeded, or CLI wiring errors. Maps to `AuditOutcome.Failed` / exit `2`; no critique file written. |
 | `Score:` | Rough qualitative signal for that run only. Model-emitted, non-deterministic; not a regression metric. Prefer Status and Top Findings over Score deltas between runs. |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Every audited target passed (`COMPLIANT`) |
+| `1` | At least one `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
+| `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (missing Rules/Targets, bad paths, missing stack folder) |

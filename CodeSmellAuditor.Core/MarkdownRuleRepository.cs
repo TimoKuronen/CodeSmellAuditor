@@ -12,7 +12,8 @@ public class MarkdownRuleRepository : IRuleRepository
         var loadedRules = new List<AuditRule>();
 
         var ruleFiles = Directory.EnumerateFiles(rulesFolderPath, "*.*")
-            .Where(file => file.EndsWith(".mdc", StringComparison.OrdinalIgnoreCase));
+            .Where(file => file.EndsWith(".mdc", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase);
 
         foreach (var filePath in ruleFiles)
         {

@@ -4,9 +4,11 @@ public record AuditConfiguration(
     string ModelName = AuditConfiguration.DefaultModelName,
     int NumCtx = 8192,
     int NumPredict = 1200,
-    int MaxInputCharacters = 24000)
+    int MaxInputCharacters = 24000,
+    string OllamaBaseAddress = AuditConfiguration.DefaultOllamaBaseAddress)
 {
     public const string DefaultModelName = "qwen3.5:4b";
+    public const string DefaultOllamaBaseAddress = "http://localhost:11434";
 
     /// <summary>
     /// Larger local-model budget for multi-file system audits.

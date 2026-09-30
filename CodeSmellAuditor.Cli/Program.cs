@@ -30,7 +30,7 @@ if (!Directory.Exists(rulesPath))
     AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
     AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE or --storage, or run from the repo with WorkstationStorage present.[/]");
     WaitForEnterIfInteractive(cliArgs);
-    Environment.ExitCode = 1;
+    Environment.ExitCode = 2;
     return;
 }
 
@@ -40,7 +40,7 @@ if (cliArgs.Mode == CliMode.Batch && !Directory.Exists(targetsPath))
     AnsiConsole.MarkupLine($"[grey]Looked in:[/] {baseStoragePath}");
     AnsiConsole.MarkupLine("[grey]Set CODESMELL_STORAGE or --storage, or run from the repo with WorkstationStorage present.[/]");
     WaitForEnterIfInteractive(cliArgs);
-    Environment.ExitCode = 1;
+    Environment.ExitCode = 2;
     return;
 }
 
@@ -108,8 +108,14 @@ AuditConfiguration auditConfig = cliArgs.Mode == CliMode.SniffSystem
         NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
         NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
 
+using var httpClient = new HttpClient
+{
+    BaseAddress = new Uri(auditConfig.OllamaBaseAddress),
+    Timeout = TimeSpan.FromMinutes(10)
+};
+
 IRuleRepository repository = new MarkdownRuleRepository();
-IAiOrchestrator aiService = new OllamaAiOrchestrator(auditConfig);
+IAiOrchestrator aiService = new OllamaAiOrchestrator(httpClient, auditConfig);
 var engine = new AuditEngine(repository, aiService);
 var host = new CliAuditHost(engine);
 
@@ -118,20 +124,20 @@ if (!string.IsNullOrWhiteSpace(cliArgs.Stack))
     AnsiConsole.MarkupLine($"[grey]Stack pack:[/] [cyan]{Markup.Escape(cliArgs.Stack)}[/]");
 }
 
-if (cliArgs.Mode == CliMode.Batch)
-{
-    AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath, cliArgs.Stack);
-    Environment.ExitCode = batchResult.ExitCode;
-    AnsiConsole.MarkupLine(
-        batchResult.AllPassed
-            ? "[bold green]Batch processing complete.[/]"
-            : "[bold yellow]Batch processing complete with failures.[/]");
-    WaitForEnterIfInteractive(cliArgs);
-    return;
-}
-
 try
 {
+    if (cliArgs.Mode == CliMode.Batch)
+    {
+        AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath, cliArgs.Stack);
+        Environment.ExitCode = batchResult.ExitCode;
+        AnsiConsole.MarkupLine(
+            batchResult.AllPassed
+                ? "[bold green]Batch processing complete.[/]"
+                : "[bold yellow]Batch processing complete with failures.[/]");
+        WaitForEnterIfInteractive(cliArgs);
+        return;
+    }
+
     if (cliArgs.Mode == CliMode.SniffSystem)
     {
         AuditRunResult systemResult = await host.RunSniffSystemAsync(
@@ -149,5 +155,5 @@ try
 catch (Exception ex) when (ex is FileNotFoundException or ArgumentException or DirectoryNotFoundException or InvalidOperationException)
 {
     AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
-    Environment.ExitCode = 1;
+    Environment.ExitCode = 2;
 }

@@ -40,6 +40,29 @@ public class MarkdownRuleRepositoryTests
     }
 
     [Fact]
+    public async Task GetActiveRulesAsync_ReturnsRulesInOrdinalIgnoreCaseOrder()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"codesmell-rules-order-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "20-second.mdc"), "Second rule.");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "00-first.mdc"), "First rule.");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "10-middle.mdc"), "Middle rule.");
+
+            var repository = new MarkdownRuleRepository();
+            var rules = (await repository.GetActiveRulesAsync(tempDir)).ToList();
+
+            Assert.Equal(new[] { "00-first.mdc", "10-middle.mdc", "20-second.mdc" }, rules.Select(r => r.Name));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task GetActiveRulesAsync_ThrowsWhenFolderMissing()
     {
         var repository = new MarkdownRuleRepository();
