@@ -15,8 +15,9 @@ public static class BatchRunSummary
             return "Batch summary: 0 files audited.";
         }
 
-        int passed = result.FileResults.Count(file => file.HasPassed);
-        int failed = result.FileResults.Count - passed;
+        int passed = result.FileResults.Count(file => file.Outcome == AuditOutcome.Passed);
+        int reviewRequired = result.FileResults.Count(file => file.Outcome == AuditOutcome.ReviewRequired);
+        int failed = result.FileResults.Count(file => file.Outcome == AuditOutcome.Failed);
 
         var builder = new StringBuilder();
         builder.Append("Batch summary: ");
@@ -24,6 +25,8 @@ public static class BatchRunSummary
         builder.Append(" files - ");
         builder.Append(passed);
         builder.Append(" passed, ");
+        builder.Append(reviewRequired);
+        builder.Append(" review required, ");
         builder.Append(failed);
         builder.Append(" failed");
 
@@ -31,11 +34,19 @@ public static class BatchRunSummary
         {
             builder.AppendLine();
             builder.Append("  ");
-            builder.Append(file.HasPassed ? "PASS" : "FAIL");
+            builder.Append(FormatOutcome(file.Outcome));
             builder.Append("  ");
             builder.Append(file.FileName);
         }
 
         return builder.ToString();
     }
+
+    private static string FormatOutcome(AuditOutcome outcome) => outcome switch
+    {
+        AuditOutcome.Passed => "PASS",
+        AuditOutcome.ReviewRequired => "FAIL",
+        AuditOutcome.Failed => "ERROR",
+        _ => "UNKNOWN"
+    };
 }

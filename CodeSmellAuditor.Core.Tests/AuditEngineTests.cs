@@ -298,6 +298,98 @@ public class AuditEngineTests
         }
     }
 
+    [Fact]
+    public async Task LoadSystemRulesAsync_LoadsArchitectureAndOptionalStack()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string architecturePath = Path.Combine(rulesPath, "Architecture");
+            string stackPath = Path.Combine(rulesPath, "Stacks", "Unity");
+            Directory.CreateDirectory(architecturePath);
+            Directory.CreateDirectory(stackPath);
+
+            await File.WriteAllTextAsync(Path.Combine(architecturePath, "arch.mdc"), "Architecture rule.");
+            await File.WriteAllTextAsync(Path.Combine(stackPath, "unity.mdc"), "Unity rule.");
+
+            var engine = new AuditEngine(
+                new MarkdownRuleRepository(),
+                new FakeAiOrchestrator("Status: COMPLIANT"));
+
+            IReadOnlyList<AuditRule> architectureOnly = await engine.LoadSystemRulesAsync(rulesPath);
+            IReadOnlyList<AuditRule> withStack = await engine.LoadSystemRulesAsync(rulesPath, "Unity");
+
+            Assert.Single(architectureOnly);
+            Assert.Equal(2, withStack.Count);
+            Assert.Contains(withStack, r => r.Name == "arch.mdc");
+            Assert.Contains(withStack, r => r.Name == "unity.mdc");
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadSystemRulesAsync_ThrowsWhenArchitectureFolderMissing()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            Directory.CreateDirectory(rulesPath);
+
+            var engine = new AuditEngine(
+                new MarkdownRuleRepository(),
+                new FakeAiOrchestrator("Status: COMPLIANT"));
+
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
+                engine.LoadSystemRulesAsync(rulesPath));
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AuditFileAsync_ToolFailure_SkipsReportPersist()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string targetsPath = Path.Combine(workspace, "Targets");
+            Directory.CreateDirectory(rulesPath);
+            Directory.CreateDirectory(targetsPath);
+
+            string filePath = Path.Combine(targetsPath, "Sample.cs");
+            await File.WriteAllTextAsync(filePath, "public class Sample { }");
+
+            var engine = new AuditEngine(
+                new FakeRuleRepository(new AuditRule("rule.mdc", "Use interfaces.")),
+                new FailingAiOrchestrator());
+
+            string reportsPath = AuditEngine.ResolveReportsDirectory(rulesPath);
+            FileAuditResult result = await engine.AuditFileAsync(
+                filePath,
+                await engine.LoadRulesAsync(rulesPath),
+                reportsPath);
+
+            Assert.Equal(AuditOutcome.Failed, result.Outcome);
+            Assert.Equal(string.Empty, result.ReportPath);
+            Assert.Empty(Directory.GetFiles(reportsPath));
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
     private static string CreateTempWorkspace()
     {
         return Path.Combine(Path.GetTempPath(), $"codesmell-engine-{Guid.NewGuid():N}");
@@ -337,8 +429,7 @@ public class AuditEngineTests
             Action<string> onTokenReceived)
         {
             onTokenReceived(_critique);
-            bool hasPassed = AuditReportParser.ParsePassStatus(_critique);
-            return Task.FromResult(new AuditReport(file.FilePath, _critique, hasPassed));
+            return Task.FromResult(AuditReport.FromParsedStatus(file.FilePath, _critique));
         }
 
         public Task<AuditReport> AnalyzeSystemAsync(
@@ -350,8 +441,30 @@ public class AuditEngineTests
             LastSystemFileCount = files.Count;
             LastManifestText = manifestText;
             onTokenReceived(_critique);
-            bool hasPassed = AuditReportParser.ParsePassStatus(_critique);
-            return Task.FromResult(new AuditReport(SystemAuditIdentity.ReportBaseName, _critique, hasPassed));
+            return Task.FromResult(
+                AuditReport.FromParsedStatus(SystemAuditIdentity.ReportBaseName, _critique));
+        }
+    }
+
+    private sealed class FailingAiOrchestrator : IAiOrchestrator
+    {
+        public Task<AuditReport> AnalyzeCodeAsync(
+            SourceFile file,
+            IEnumerable<AuditRule> rules,
+            Action<string> onTokenReceived)
+        {
+            return Task.FromResult(
+                AuditReport.ToolFailure(file.FilePath, "# Local Engine Failure\n\nUnavailable"));
+        }
+
+        public Task<AuditReport> AnalyzeSystemAsync(
+            IReadOnlyList<SourceFile> files,
+            string? manifestText,
+            IEnumerable<AuditRule> rules,
+            Action<string> onTokenReceived)
+        {
+            return Task.FromResult(
+                AuditReport.ToolFailure(SystemAuditIdentity.ReportBaseName, "# Local Engine Failure\n\nUnavailable"));
         }
     }
 }

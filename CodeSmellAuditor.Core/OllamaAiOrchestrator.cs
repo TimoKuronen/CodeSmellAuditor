@@ -9,19 +9,10 @@ public class OllamaAiOrchestrator : IAiOrchestrator
     private readonly HttpClient _httpClient;
     private readonly AuditConfiguration _config;
 
-    public OllamaAiOrchestrator(AuditConfiguration config)
+    public OllamaAiOrchestrator(HttpClient httpClient, AuditConfiguration config)
     {
-        _httpClient = new HttpClient
-        {
-            BaseAddress = new Uri("http://localhost:11434"),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
+        _httpClient = httpClient;
         _config = config;
-    }
-
-    public OllamaAiOrchestrator(string modelName)
-        : this(new AuditConfiguration(ModelName: modelName))
-    {
     }
 
     public async Task<AuditReport> AnalyzeCodeAsync(
@@ -38,7 +29,9 @@ public class OllamaAiOrchestrator : IAiOrchestrator
         }
         catch (InvalidOperationException ex)
         {
-            return new AuditReport(file.FilePath, $"# Audit Budget Exceeded\n\n{ex.Message}", false);
+            return AuditReport.ToolFailure(
+                file.FilePath,
+                $"# Audit Budget Exceeded\n\n{ex.Message}");
         }
 
         return await CompleteChatAsync(file.FilePath, systemPrompt, userPrompt, onTokenReceived);
@@ -52,10 +45,9 @@ public class OllamaAiOrchestrator : IAiOrchestrator
     {
         if (files.Count < 2)
         {
-            return new AuditReport(
+            return AuditReport.ToolFailure(
                 SystemAuditIdentity.ReportBaseName,
-                "# System Audit Error\n\nSystem audit requires at least two source files.",
-                false);
+                "# System Audit Error\n\nSystem audit requires at least two source files.");
         }
 
         string systemPrompt = SystemAuditPromptBuilder.BuildSystemPrompt(rules);
@@ -67,10 +59,9 @@ public class OllamaAiOrchestrator : IAiOrchestrator
         }
         catch (InvalidOperationException ex)
         {
-            return new AuditReport(
+            return AuditReport.ToolFailure(
                 SystemAuditIdentity.ReportBaseName,
-                $"# Audit Budget Exceeded\n\n{ex.Message}",
-                false);
+                $"# Audit Budget Exceeded\n\n{ex.Message}");
         }
 
         return await CompleteChatAsync(
@@ -120,7 +111,9 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                 Content = contentStream
             };
 
-            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            using var response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 
             using var networkStream = await response.Content.ReadAsStreamAsync();
@@ -136,6 +129,18 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                 }
 
                 using var doc = JsonDocument.Parse(jsonLine);
+
+                if (doc.RootElement.TryGetProperty("error", out var errorElement))
+                {
+                    string errorText = errorElement.ValueKind == JsonValueKind.String
+                        ? errorElement.GetString() ?? "Unknown Ollama error"
+                        : errorElement.ToString();
+
+                    return AuditReport.ToolFailure(
+                        reportPath,
+                        $"# Local Engine Failure\n\nOllama returned an error.\n\n{errorText}");
+                }
+
                 if (doc.RootElement.TryGetProperty("message", out var messageElement) &&
                     messageElement.TryGetProperty("content", out var contentElement))
                 {
@@ -152,27 +157,25 @@ public class OllamaAiOrchestrator : IAiOrchestrator
             string fullTextResult = completeReportBuilder.ToString();
             if (string.IsNullOrWhiteSpace(fullTextResult))
             {
-                return new AuditReport(
+                return AuditReport.ToolFailure(
                     reportPath,
                     "# Empty Model Response\n\n" +
-                    "Ollama returned no report content. If using a reasoning model, ensure thinking mode is disabled.",
-                    false);
+                    "Ollama returned no report content. If using a reasoning model, ensure thinking mode is disabled.");
             }
 
-            bool hasPassed = AuditReportParser.ParsePassStatus(fullTextResult);
-
-            return new AuditReport(reportPath, fullTextResult, hasPassed);
+            return AuditReport.FromParsedStatus(reportPath, fullTextResult);
         }
         catch (HttpRequestException ex)
         {
-            return new AuditReport(
+            return AuditReport.ToolFailure(
                 reportPath,
-                $"# Local Engine Failure\n\nUnable to reach Ollama API.\n\n{ex.Message}",
-                false);
+                $"# Local Engine Failure\n\nUnable to reach Ollama API.\n\n{ex.Message}");
         }
         catch (Exception ex)
         {
-            return new AuditReport(reportPath, $"# Internal Audit System Error\n\n{ex.Message}", false);
+            return AuditReport.ToolFailure(
+                reportPath,
+                $"# Internal Audit System Error\n\n{ex.Message}");
         }
     }
 }

@@ -61,6 +61,39 @@ public class AuditEngine
         return combined;
     }
 
+    /// <summary>
+    /// Loads Architecture rule packs (and optional stack packs from the root Rules folder)
+    /// for sniff-system audits.
+    /// </summary>
+    public async Task<IReadOnlyList<AuditRule>> LoadSystemRulesAsync(
+        string rulesPath,
+        string? stackName = null)
+    {
+        string architectureRulesPath = ResolveArchitectureRulesPath(rulesPath);
+        if (!Directory.Exists(architectureRulesPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Architecture rules folder not found: {architectureRulesPath}");
+        }
+
+        IReadOnlyList<AuditRule> architectureRules = await LoadRulesAsync(architectureRulesPath);
+        if (architectureRules.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"No architecture rule packs found under {architectureRulesPath}");
+        }
+
+        if (string.IsNullOrWhiteSpace(stackName))
+        {
+            return architectureRules;
+        }
+
+        return await LoadRulesAsync(
+            architectureRulesPath,
+            stackName,
+            stackRootRulesPath: rulesPath);
+    }
+
     public static string ResolveArchitectureRulesPath(string rulesPath)
     {
         return Path.Combine(rulesPath, "Architecture");
@@ -103,7 +136,49 @@ public class AuditEngine
 
     public static IReadOnlyList<string> EnumerateTargetFiles(string targetsPath)
     {
-        return Directory.GetFiles(targetsPath, "*.cs");
+        return Directory.GetFiles(targetsPath, "*.cs")
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Resolves caller paths to existing absolute .cs files. Enforces a minimum count.
+    /// </summary>
+    public static IReadOnlyList<string> ResolveExistingCsPaths(
+        IReadOnlyList<string> filePaths,
+        int minimumCount,
+        string commandName)
+    {
+        if (filePaths.Count < minimumCount)
+        {
+            throw new ArgumentException(
+                minimumCount <= 1
+                    ? $"{commandName} requires at least one path to a .cs file."
+                    : $"{commandName} requires at least two paths to .cs files.",
+                nameof(filePaths));
+        }
+
+        var absolutePaths = new List<string>(filePaths.Count);
+        foreach (string filePath in filePaths)
+        {
+            string absolutePath = Path.GetFullPath(filePath);
+            if (!File.Exists(absolutePath))
+            {
+                throw new FileNotFoundException(
+                    $"{commandName} target not found: {absolutePath}",
+                    absolutePath);
+            }
+
+            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"{commandName} path must be a .cs file: {absolutePath}");
+            }
+
+            absolutePaths.Add(absolutePath);
+        }
+
+        return absolutePaths;
     }
 
     public async Task<FileAuditResult> AuditFileAsync(
@@ -112,21 +187,31 @@ public class AuditEngine
         string reportsDirectoryPath,
         Action<string>? onTokenReceived = null)
     {
-        string fileName = Path.GetFileName(filePath);
-        string sourceCodeText = await File.ReadAllTextAsync(filePath);
-        SourceFile currentTarget = new(filePath, sourceCodeText);
+        string absolutePath = Path.GetFullPath(filePath);
+        if (!File.Exists(absolutePath))
+        {
+            throw new FileNotFoundException($"Audit target not found: {absolutePath}", absolutePath);
+        }
+
+        if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"Audit path must be a .cs file: {absolutePath}");
+        }
+
+        string fileName = Path.GetFileName(absolutePath);
+        string sourceCodeText = await File.ReadAllTextAsync(absolutePath);
+        SourceFile currentTarget = new(absolutePath, sourceCodeText);
 
         AuditReport auditReport = await _aiService.AnalyzeCodeAsync(
             currentTarget,
             rules,
             token => onTokenReceived?.Invoke(token));
 
-        string writtenFilePath = await SaveReportToFileSystemAsync(
-            reportsDirectoryPath,
+        return await ToFileAuditResultAsync(
             fileName,
-            auditReport.MarkdownCritique);
-
-        return new FileAuditResult(fileName, writtenFilePath, auditReport.HasPassed);
+            fileName,
+            auditReport,
+            reportsDirectoryPath);
     }
 
     public async Task<FileAuditResult> AuditSystemAsync(
@@ -136,27 +221,16 @@ public class AuditEngine
         string reportsDirectoryPath,
         Action<string>? onTokenReceived = null)
     {
-        if (filePaths.Count < 2)
+        IReadOnlyList<string> absolutePaths = ResolveExistingCsPaths(
+            filePaths,
+            minimumCount: 2,
+            commandName: "System audit");
+
+        var sources = new List<SourceFile>(absolutePaths.Count);
+        var fileNames = new List<string>(absolutePaths.Count);
+
+        foreach (string absolutePath in absolutePaths)
         {
-            throw new ArgumentException("System audit requires at least two .cs file paths.", nameof(filePaths));
-        }
-
-        var sources = new List<SourceFile>(filePaths.Count);
-        var fileNames = new List<string>(filePaths.Count);
-
-        foreach (string filePath in filePaths)
-        {
-            string absolutePath = Path.GetFullPath(filePath);
-            if (!File.Exists(absolutePath))
-            {
-                throw new FileNotFoundException($"System audit target not found: {absolutePath}", absolutePath);
-            }
-
-            if (!absolutePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException($"System audit path must be a .cs file: {absolutePath}");
-            }
-
             string content = await File.ReadAllTextAsync(absolutePath);
             sources.Add(new SourceFile(absolutePath, content));
             fileNames.Add(Path.GetFileName(absolutePath));
@@ -169,13 +243,12 @@ public class AuditEngine
             token => onTokenReceived?.Invoke(token));
 
         string targetLabel = string.Join(", ", fileNames);
-        string writtenFilePath = await SaveReportToFileSystemAsync(
-            reportsDirectoryPath,
+        return await ToFileAuditResultAsync(
+            SystemAuditIdentity.ReportBaseName,
             SystemAuditIdentity.ReportBaseName + ".cs",
-            auditReport.MarkdownCritique,
+            auditReport,
+            reportsDirectoryPath,
             targetLabel);
-
-        return new FileAuditResult(SystemAuditIdentity.ReportBaseName, writtenFilePath, auditReport.HasPassed);
     }
 
     public async Task<AuditRunResult> RunBatchAsync(string rulesPath, string targetsPath)
@@ -196,6 +269,27 @@ public class AuditEngine
         }
 
         return new AuditRunResult(fileResults);
+    }
+
+    private static async Task<FileAuditResult> ToFileAuditResultAsync(
+        string resultFileName,
+        string reportBaseFileName,
+        AuditReport auditReport,
+        string reportsDirectoryPath,
+        string? targetFileLabel = null)
+    {
+        if (auditReport.Outcome == AuditOutcome.Failed)
+        {
+            return new FileAuditResult(resultFileName, string.Empty, AuditOutcome.Failed);
+        }
+
+        string writtenFilePath = await SaveReportToFileSystemAsync(
+            reportsDirectoryPath,
+            reportBaseFileName,
+            auditReport.MarkdownCritique,
+            targetFileLabel);
+
+        return new FileAuditResult(resultFileName, writtenFilePath, auditReport.Outcome);
     }
 
     private static async Task<string> SaveReportToFileSystemAsync(
