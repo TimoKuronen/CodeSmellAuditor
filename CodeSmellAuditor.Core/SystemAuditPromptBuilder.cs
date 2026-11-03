@@ -8,6 +8,11 @@ namespace CodeSmellAuditor.Core;
 /// </summary>
 public static class SystemAuditPromptBuilder
 {
+    /// <summary>
+    /// Report section whose findings are checked against the source.
+    /// </summary>
+    public const string FindingsHeading = "## Cross-File Findings";
+
     private const string GroundingRules = """
         Grounding rules:
         - Only report a finding if a concrete symbol, member, or pattern for it is visible in the provided source files.
@@ -28,7 +33,10 @@ public static class SystemAuditPromptBuilder
         - (max 5 bullets, one line each; state N/A if no manifest was provided)
 
         ## Cross-File Findings
-        - (max 5 bullets, one line each)
+        - [F1] File: Core.cs | Line: 42 | Rule: 50-cross-file-dependencies.mdc | Fix: judgment
+          Evidence: `one line copied exactly from that file`
+          Issue: One sentence naming the files and members involved.
+        - (max 5 findings in this shape; write "- None" when there are no findings)
 
         ## Per-File Notes
         - (max 5 bullets, one line each; name the file in each bullet)
@@ -42,6 +50,9 @@ public static class SystemAuditPromptBuilder
         - Score is a rough qualitative signal for this run only, not a regression metric; do not imply meaningful change between runs from a small Score delta; base Score primarily on the count and severity of this run's own findings.
         - Emit Status, Score, Manifest Conformance, and Cross-File Findings first. If the output budget is tight, omit Per-File Notes and/or Recommended Next Step rather than truncating or omitting Status.
         - Judge the files against the stated architecture contract and the governance rules. Do not invent a different architecture; flag conflicts with the given contract.
+        - Every Cross-File Findings entry needs a File field and an Evidence line that copies one line of that file character for character: a full statement, declaration, or signature, never a lone brace or keyword. Findings whose Evidence is not found in the named file are discarded automatically.
+        - Any Manifest Conformance violation must also appear as a Cross-File Findings entry with Evidence.
+        - Fix is mechanical when the change is local and rule-driven (naming, formatting, comment wording, moving a type to its own file); otherwise judgment.
         """;
 
     public static string BuildSystemPrompt(IEnumerable<AuditRule> rules)

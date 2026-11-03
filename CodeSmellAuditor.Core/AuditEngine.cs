@@ -211,6 +211,8 @@ public class AuditEngine
             fileName,
             fileName,
             auditReport,
+            new[] { currentTarget },
+            AuditPromptBuilder.FindingsHeading,
             reportsDirectoryPath);
     }
 
@@ -247,6 +249,8 @@ public class AuditEngine
             SystemAuditIdentity.ReportBaseName,
             SystemAuditIdentity.ReportBaseName + ".cs",
             auditReport,
+            sources,
+            SystemAuditPromptBuilder.FindingsHeading,
             reportsDirectoryPath,
             targetLabel);
     }
@@ -275,21 +279,41 @@ public class AuditEngine
         string resultFileName,
         string reportBaseFileName,
         AuditReport auditReport,
+        IReadOnlyList<SourceFile> sources,
+        string findingsHeading,
         string reportsDirectoryPath,
         string? targetFileLabel = null)
     {
         if (auditReport.Outcome == AuditOutcome.Failed)
         {
-            return new FileAuditResult(resultFileName, string.Empty, AuditOutcome.Failed);
+            string reason = string.Join(
+                " ",
+                auditReport.MarkdownCritique
+                    .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(line => line.TrimStart('#', ' ')));
+            return new FileAuditResult(resultFileName, string.Empty, AuditOutcome.Failed, reason);
         }
+
+        AuditGrounding grounding = AuditGrounding.Evaluate(auditReport.MarkdownCritique, findingsHeading, sources);
+        string markdownContent =
+            auditReport.MarkdownCritique.TrimEnd() + "\n\n" + AuditSummaryFormatter.BuildMarkdownSection(grounding);
 
         string writtenFilePath = await SaveReportToFileSystemAsync(
             reportsDirectoryPath,
             reportBaseFileName,
-            auditReport.MarkdownCritique,
+            markdownContent,
             targetFileLabel);
 
-        return new FileAuditResult(resultFileName, writtenFilePath, auditReport.Outcome);
+        string summaryJson = AuditSummaryFormatter.BuildJson(
+            targetFileLabel ?? reportBaseFileName,
+            Path.GetFileName(writtenFilePath),
+            grounding);
+        await File.WriteAllTextAsync(
+            AuditSummaryFormatter.GetSummaryPath(writtenFilePath),
+            summaryJson,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        return new FileAuditResult(resultFileName, writtenFilePath, grounding.Outcome);
     }
 
     private static async Task<string> SaveReportToFileSystemAsync(

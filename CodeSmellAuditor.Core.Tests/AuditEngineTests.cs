@@ -382,7 +382,75 @@ public class AuditEngineTests
 
             Assert.Equal(AuditOutcome.Failed, result.Outcome);
             Assert.Equal(string.Empty, result.ReportPath);
+            Assert.Equal("Local Engine Failure Unavailable", result.FailureReason);
             Assert.Empty(Directory.GetFiles(reportsPath));
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AuditFileAsync_GroundsFindingsAndWritesSummarySidecar()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string targetsPath = Path.Combine(workspace, "Targets");
+            Directory.CreateDirectory(rulesPath);
+            Directory.CreateDirectory(targetsPath);
+
+            string filePath = Path.Combine(targetsPath, "Sample.cs");
+            await File.WriteAllTextAsync(filePath, "public class Sample\n{\n    public int Count { get; set; }\n}\n");
+
+            string critique = """
+                Status: COMPLIANT
+                Score: 70
+
+                ## Top Findings
+                - [F1] Line: 3 | Rule: rule.mdc | Fix: mechanical
+                  Evidence: `public int Count { get; set; }`
+                  Issue: Count is publicly settable.
+                - [F2] Line: 9
+                  Evidence: `private static int hidden = 0;`
+                  Issue: Invented member.
+                """;
+
+            var engine = new AuditEngine(
+                new FakeRuleRepository(new AuditRule("rule.mdc", "Use interfaces.")),
+                new FakeAiOrchestrator(critique));
+
+            FileAuditResult result = await engine.AuditFileAsync(
+                filePath,
+                await engine.LoadRulesAsync(rulesPath),
+                AuditEngine.ResolveReportsDirectory(rulesPath));
+
+            Assert.Equal(AuditOutcome.ReviewRequired, result.Outcome);
+
+            string savedReport = await File.ReadAllTextAsync(result.ReportPath);
+            Assert.Contains("## Grounding", savedReport);
+            Assert.Contains("- F1 grounded - Sample.cs:3", savedReport);
+            Assert.Contains("- F2 ungrounded - evidence not found in Sample.cs", savedReport);
+
+            string summaryPath = AuditSummaryFormatter.GetSummaryPath(result.ReportPath);
+            Assert.EndsWith("_Critique.summary.json", summaryPath);
+
+            using var summary = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(summaryPath));
+            var root = summary.RootElement;
+            Assert.Equal(AuditSummaryFormatter.ContractVersion, root.GetProperty("contractVersion").GetInt32());
+            Assert.Equal("COMPLIANT", root.GetProperty("modelStatus").GetString());
+            Assert.Equal("REVIEW REQUIRED", root.GetProperty("status").GetString());
+            Assert.Equal(1, root.GetProperty("grounded").GetInt32());
+            Assert.Equal(1, root.GetProperty("ungrounded").GetInt32());
+            Assert.Equal(Path.GetFileName(result.ReportPath), root.GetProperty("report").GetString());
+
+            var first = root.GetProperty("findings")[0];
+            Assert.Equal("F1", first.GetProperty("id").GetString());
+            Assert.Equal(3, first.GetProperty("line").GetInt32());
+            Assert.True(first.GetProperty("grounded").GetBoolean());
         }
         finally
         {

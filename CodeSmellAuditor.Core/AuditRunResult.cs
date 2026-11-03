@@ -1,6 +1,7 @@
 namespace CodeSmellAuditor.Core;
 
-public record FileAuditResult(string FileName, string ReportPath, AuditOutcome Outcome)
+/// <param name="FailureReason">One-line cause when <paramref name="Outcome"/> is Failed (no report is saved then).</param>
+public record FileAuditResult(string FileName, string ReportPath, AuditOutcome Outcome, string? FailureReason = null)
 {
     public bool HasPassed => Outcome == AuditOutcome.Passed;
 }

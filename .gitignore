@@ -25,6 +25,7 @@ artifacts/
 
 ## Generated audit reports
 WorkstationStorage/Reports/*.md
+WorkstationStorage/Reports/*.summary.json
 
 ## Test results
 TestResults/

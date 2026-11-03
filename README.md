@@ -16,7 +16,8 @@ This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the 
 - `sniff-system` for two or more related files (optional `--manifest`) using `Rules/Architecture/` and one combined report
 - Local Ollama only — source stays on your machine
 - Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
-- Pass/fail from the report `Status:` line (exit `0`/`1`); tool/wiring failures exit `2` and skip report persistence; `Score` is informational only
+- Grounded findings: each finding quotes the source, the quote is verified against the audited files, and pass/fail counts verified findings only (exit `0`/`1`); tool/wiring failures exit `2` with the cause printed and skip report persistence; `Score` is informational only
+- Compact `*.summary.json` sidecar next to each report (status, grounded/ungrounded counts, one entry per finding) for scripts and tooling
 - Layered Core / Cli with interfaces for rule loading and AI orchestration
 - xUnit tests (fakes; no Ollama in CI) and Ubuntu GitHub Actions
 
