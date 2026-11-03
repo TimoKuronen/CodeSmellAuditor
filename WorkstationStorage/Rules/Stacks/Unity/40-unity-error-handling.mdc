@@ -1,11 +1,11 @@
 ---
-description: Unity error handling for CodeSmellAuditor (EngineeringRulebook 1.3.0)
+description: Unity error handling for CodeSmellAuditor (EngineeringRulebook 1.7.0)
 alwaysApply: false
 ---
 
 # Unity error handling
 
-RulePackVersion: 1.3.0
+RulePackVersion: 1.7.0
 Mode: stack-unity
 
 - Flag defensive null checks on every internal private call when serialized refs should be validated at startup.
