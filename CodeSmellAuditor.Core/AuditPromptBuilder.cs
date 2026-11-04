@@ -22,6 +22,11 @@ public record AuditConfiguration(
 
 public static class AuditPromptBuilder
 {
+    /// <summary>
+    /// Report section whose findings are checked against the source.
+    /// </summary>
+    public const string FindingsHeading = "## Top Findings";
+
     private const string GroundingRules = """
         Grounding rules:
         - Only report a finding if a concrete symbol, member, or pattern for it is visible in the provided source text.
@@ -39,7 +44,10 @@ public static class AuditPromptBuilder
         Score: 85
 
         ## Top Findings
-        - (max 5 bullets, one line each)
+        - [F1] Line: 42 | Rule: 10-csharp-style.mdc | Fix: mechanical
+          Evidence: `one line copied exactly from the source`
+          Issue: One sentence naming the exact method, property, or field.
+        - (max 5 findings in this shape; write "- None" when there are no findings)
 
         ## Missing Context
         - (max 3 bullets, one line each)
@@ -52,6 +60,8 @@ public static class AuditPromptBuilder
         - The Score line must appear exactly once as an integer from 0 to 100.
         - Score is a rough qualitative signal for this run only, not a regression metric; do not imply meaningful change between runs from a small Score delta; base Score primarily on the count and severity of this run's own Top Findings.
         - Emit Status, Score, and Top Findings first. If the output budget is tight, omit Missing Context and/or Recommended Next Step rather than truncating or omitting Status.
+        - Every Top Findings entry needs an Evidence line that copies one line of the source character for character: a full statement, declaration, or signature, never a lone brace or keyword. Findings whose Evidence is not found in the source are discarded automatically.
+        - Fix is mechanical when the change is local and rule-driven (naming, formatting, comment wording, moving a type to its own file); otherwise judgment.
         """;
 
     public static string BuildSystemPrompt(IEnumerable<AuditRule> rules)
@@ -94,14 +104,23 @@ public static class AuditPromptBuilder
 
 public static class AuditReportParser
 {
+    public const string CompliantStatus = "COMPLIANT";
+    public const string ReviewRequiredStatus = "REVIEW REQUIRED";
+
     /// <summary>
     /// Pass/fail from a dedicated Status line only. Missing or unparseable Status fails closed.
     /// </summary>
-    public static bool ParsePassStatus(string reportBody)
+    public static bool ParsePassStatus(string reportBody) =>
+        ParseStatusValue(reportBody) == CompliantStatus;
+
+    /// <summary>
+    /// Normalized value of the first Status line, or null when it is missing or not an allowed value.
+    /// </summary>
+    public static string? ParseStatusValue(string reportBody)
     {
         if (string.IsNullOrWhiteSpace(reportBody))
         {
-            return false;
+            return null;
         }
 
         foreach (string line in reportBody.Split('\n'))
@@ -113,21 +132,21 @@ public static class AuditReportParser
             }
 
             string statusValue = trimmed["Status:".Length..].Trim();
-            if (statusValue.Equals("REVIEW REQUIRED", StringComparison.OrdinalIgnoreCase))
+            if (statusValue.Equals(ReviewRequiredStatus, StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                return ReviewRequiredStatus;
             }
 
-            if (statusValue.Equals("COMPLIANT", StringComparison.OrdinalIgnoreCase))
+            if (statusValue.Equals(CompliantStatus, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                return CompliantStatus;
             }
 
             // Status line present but not an allowed value: fail closed.
-            return false;
+            return null;
         }
 
         // No Status line (truncated or drifted report): fail closed.
-        return false;
+        return null;
     }
 }

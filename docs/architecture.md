@@ -71,13 +71,17 @@ Presentation-neutral domain API:
 1. `LoadRulesAsync` - load compact rules (optional stack name concatenates `Rules/Stacks/<name>/`)
 2. `LoadSystemRulesAsync` - Architecture packs plus optional stack packs for sniff-system
 3. `EnumerateTargetFiles` / `ResolveExistingCsPaths` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` / `ResolveStackRulesPath` - storage helpers
-4. `AuditFileAsync` - analyze one file, optional token callback, persist markdown report when outcome is not `Failed`
+4. `AuditFileAsync` - analyze one file, optional token callback, ground the findings, persist the markdown report and summary sidecar when outcome is not `Failed`
 5. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
 6. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
 
 ### SystemAuditPromptBuilder
 
 Assembles architecture-mode system/user prompts (manifest + multi-file sources) with a larger character budget via `AuditConfiguration.ForSystemAudit`. Single-file prompts stay in `AuditPromptBuilder`.
+
+### Finding grounding
+
+`AuditFindingParser` reads structured findings (Id, File, Line, Rule, Fix, Evidence, Issue) from `## Top Findings` or `## Cross-File Findings`, tolerating layout drift from small models. `FindingGroundingValidator` checks each Evidence quote against the audited source (whitespace-insensitive; `...` marks a gap within one line; quotes under 12 characters are rejected) and records the verified line. `AuditGrounding` turns the model Status plus grounded findings into the final `AuditOutcome`. `AuditSummaryFormatter` appends a `## Grounding` section to the report and writes the JSON sidecar. Grounding happens in `AuditEngine`, so `IAiOrchestrator` implementations stay unaware of it.
 
 ### CliAuditHost
 
@@ -96,6 +100,7 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 | Stack packs under `Rules/Stacks/<name>/` | Unity (and future stacks) are opt-in via `--stack`; default packs stay stack-agnostic |
 | Bounded report template | Prevents reasoning models from consuming output budget |
 | Status line parsing | Deterministic pass/fail from `Status:` line |
+| Grounding in code, not in the model | Small local models invent or misplace findings; verifying quotes against the source is exact and costs no model calls |
 | Score is informational | Model-emitted qualitative signal; not used for exit codes or regression |
 | Env var for storage and model config | Portable across machines |
 
@@ -133,14 +138,18 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 
 | Field | Role |
 |-------|------|
-| `Status:` | Sole model pass/fail signal (`COMPLIANT` or `REVIEW REQUIRED`). Maps to exit `0` or `1`. |
-| Tool failure | Ollama unreachable, empty response, budget exceeded, or CLI wiring errors. Maps to `AuditOutcome.Failed` / exit `2`; no critique file written. |
+| `Status:` | Model verdict (`COMPLIANT` or `REVIEW REQUIRED`). Missing or invalid fails closed to review required. |
+| Findings | `## Top Findings` (single file) or `## Cross-File Findings` (system): `[F1] File: \| Line: \| Rule: \| Fix: mechanical\|judgment`, then `Evidence:` (one source line, verbatim) and `Issue:`. `- None` when there are none. |
+| Final status | With a findings section: review required when at least one finding is grounded, compliant when none are, regardless of the model Status. Without one: the model Status decides. Maps to exit `0` or `1`. |
+| `## Grounding` | Appended by the tool: model vs final status, counts, and per-finding grounded / ungrounded with verified `file:line` or the reason. |
+| `*_Critique.summary.json` | Sidecar with `contractVersion`, `target`, `report`, `modelStatus`, `status`, `grounded`, `ungrounded`, and `findings` (`id`, `file`, `line`, `rule`, `fix`, `grounded`, `issue`, `evidence`, `note`). |
+| Tool failure | Ollama unreachable, empty response, budget exceeded, or CLI wiring errors. Maps to `AuditOutcome.Failed` / exit `2`; no critique file written; the cause is printed. |
 | `Score:` | Rough qualitative signal for that run only. Model-emitted, non-deterministic; not a regression metric. Prefer Status and Top Findings over Score deltas between runs. |
 
 ### Exit codes
 
 | Code | Meaning |
 |------|---------|
-| `0` | Every audited target passed (`COMPLIANT`) |
-| `1` | At least one `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
+| `0` | Every audited target passed (final status `COMPLIANT`) |
+| `1` | At least one final `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
 | `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (missing Rules/Targets, bad paths, missing stack folder) |

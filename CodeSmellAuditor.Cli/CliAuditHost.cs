@@ -218,7 +218,13 @@ public sealed class CliAuditHost
     {
         if (string.IsNullOrEmpty(result.ReportPath))
         {
-            AnsiConsole.MarkupLine("[grey]└──[/] [yellow]No report saved (tool failure).[/]\n");
+            AnsiConsole.MarkupLine("[grey]└──[/] [yellow]No report saved (tool failure).[/]");
+            if (!string.IsNullOrWhiteSpace(result.FailureReason))
+            {
+                AnsiConsole.MarkupLine($"    [yellow]{Markup.Escape(result.FailureReason)}[/]");
+            }
+
+            AnsiConsole.WriteLine();
             return;
         }
 

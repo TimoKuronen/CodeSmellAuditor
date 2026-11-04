@@ -26,6 +26,9 @@ public class AuditPromptBuilderTests
         Assert.Contains("visible in the provided source text", prompt);
         Assert.Contains("Missing Context as an open question", prompt);
         Assert.Contains("not a regression metric", prompt);
+        Assert.Contains(AuditPromptBuilder.FindingsHeading, prompt);
+        Assert.Contains("Evidence:", prompt);
+        Assert.Contains("discarded automatically", prompt);
     }
 
     [Fact]

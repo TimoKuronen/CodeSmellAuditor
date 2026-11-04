@@ -24,6 +24,9 @@ public class SystemAuditPromptBuilderTests
         Assert.Contains("Grounding rules:", prompt);
         Assert.Contains("visible in the provided source files", prompt);
         Assert.Contains("not a regression metric", prompt);
+        Assert.Contains(SystemAuditPromptBuilder.FindingsHeading, prompt);
+        Assert.Contains("File: Core.cs", prompt);
+        Assert.Contains("discarded automatically", prompt);
     }
 
     [Fact]
