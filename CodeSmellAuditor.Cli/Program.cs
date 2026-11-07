@@ -16,7 +16,7 @@ try
 catch (ArgumentException ex)
 {
     AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
-    Environment.ExitCode = 1;
+    Environment.ExitCode = 2;
     return;
 }
 

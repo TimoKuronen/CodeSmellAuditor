@@ -1,5 +1,5 @@
 ---
-description: C# style for CodeSmellAuditor (EngineeringRulebook 1.7.0)
+description: C# style for CodeSmellAuditor
 globs: "**/*.cs"
 alwaysApply: true
 ---

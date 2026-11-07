@@ -1,5 +1,5 @@
 ---
-description: .NET project layout for CodeSmellAuditor (EngineeringRulebook 1.7.0)
+description: .NET project layout for CodeSmellAuditor
 alwaysApply: true
 ---
 
@@ -12,4 +12,4 @@ RulePackVersion: 1.7.0
 - Flag Core referencing Infrastructure or Ui.
 - Flag interfaces defined in Infrastructure that Core depends on (dependency inversion violation).
 - Flag new solution-wide Interfaces/ dump folders.
-- Prefer layer projects per EngineeringRulebook dotnet-project-layout.md.
+- Prefer layer projects.

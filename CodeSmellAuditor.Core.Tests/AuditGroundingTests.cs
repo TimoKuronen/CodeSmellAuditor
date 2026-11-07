@@ -51,6 +51,29 @@ public class AuditGroundingTests
         Assert.Equal(AuditOutcome.ReviewRequired, grounding.Outcome);
     }
 
+    [Theory]
+    [InlineData("Status: COMPLIANT\nScore: 90")]
+    [InlineData("Status: COMPLIANT\n## Top Findings\n- None")]
+    [InlineData("Status: COMPLIANT\n## Top Findings\n- [F1] Line: 3\n  Evidence: `public in")]
+    public void Evaluate_TruncatedBeforeFindingsEnd_FailsClosed(string report)
+    {
+        AuditGrounding grounding = AuditGrounding.Evaluate(report, Heading, Sources, truncated: true);
+
+        Assert.True(grounding.FindingsTruncated);
+        Assert.Equal(AuditOutcome.ReviewRequired, grounding.Outcome);
+    }
+
+    [Fact]
+    public void Evaluate_TruncatedAfterFindingsEnd_KeepsGroundedOutcome()
+    {
+        string report = $"Status: COMPLIANT\n{Heading}\n- None\n\n## Missing Context\n- Composition ro";
+
+        AuditGrounding grounding = AuditGrounding.Evaluate(report, Heading, Sources, truncated: true);
+
+        Assert.False(grounding.FindingsTruncated);
+        Assert.Equal(AuditOutcome.Passed, grounding.Outcome);
+    }
+
     [Fact]
     public void Evaluate_CountsGroundedAndUngrounded()
     {

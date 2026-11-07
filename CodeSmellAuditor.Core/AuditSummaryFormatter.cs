@@ -47,8 +47,19 @@ public static class AuditSummaryFormatter
             $"Final status: {FormatStatus(grounding.Outcome)} | " +
             $"Grounded: {grounding.GroundedCount} | Ungrounded: {grounding.UngroundedCount}");
 
+        if (grounding.FindingsTruncated)
+        {
+            builder.AppendLine();
+            builder.AppendLine("Output limit reached before the findings ended; the report cannot pass.");
+        }
+
         if (!grounding.FindingsSectionFound)
         {
+            if (grounding.FindingsTruncated)
+            {
+                return builder.ToString();
+            }
+
             builder.AppendLine();
             builder.AppendLine("Findings section not found; final status follows the model Status line.");
             return builder.ToString();
@@ -82,6 +93,7 @@ public static class AuditSummaryFormatter
             grounding.ModelStatus,
             FormatStatus(grounding.Outcome),
             grounding.FindingsSectionFound,
+            grounding.FindingsTruncated,
             grounding.GroundedCount,
             grounding.UngroundedCount,
             grounding.Findings
@@ -107,6 +119,7 @@ public static class AuditSummaryFormatter
         string? ModelStatus,
         string Status,
         bool FindingsSectionFound,
+        bool FindingsTruncated,
         int Grounded,
         int Ungrounded,
         IReadOnlyList<SummaryFinding> Findings);

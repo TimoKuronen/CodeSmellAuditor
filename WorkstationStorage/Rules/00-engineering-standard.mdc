@@ -1,12 +1,11 @@
 ---
-description: Engineering governance for CodeSmellAuditor (EngineeringRulebook 1.7.0)
+description: Engineering governance for CodeSmellAuditor
 alwaysApply: true
 ---
 
 # Engineering governance
 
 RulePackVersion: 1.7.0
-Source: EngineeringRulebook templates/ollama/csharp-review-pack.md
 
 ## MUST
 

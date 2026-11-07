@@ -1,5 +1,5 @@
 ---
-description: Error handling for CodeSmellAuditor (EngineeringRulebook 1.7.0)
+description: Error handling for CodeSmellAuditor
 alwaysApply: true
 ---
 

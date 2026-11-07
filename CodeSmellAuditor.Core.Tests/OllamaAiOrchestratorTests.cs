@@ -32,6 +32,27 @@ public class OllamaAiOrchestratorTests
         Assert.Contains("Status: COMPLIANT", tokens.ToString());
     }
 
+    [Theory]
+    [InlineData("length", true, AuditOutcome.ReviewRequired)]
+    [InlineData("stop", false, AuditOutcome.Passed)]
+    public async Task AnalyzeCodeAsync_ReadsDoneReason(
+        string doneReason,
+        bool expectedTruncated,
+        AuditOutcome expectedOutcome)
+    {
+        string streamBody =
+            """{"message":{"content":"Status: COMPLIANT"},"done":false}""" + "\n" +
+            "{\"message\":{\"content\":\"\"},\"done\":true,\"done_reason\":\"" + doneReason + "\"}\n";
+
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
+        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+
+        AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
+
+        Assert.Equal(expectedTruncated, report.Truncated);
+        Assert.Equal(expectedOutcome, report.Outcome);
+    }
+
     [Fact]
     public async Task AnalyzeCodeAsync_EmptyBody_ReturnsFailed()
     {
