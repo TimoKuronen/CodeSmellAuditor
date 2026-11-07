@@ -17,7 +17,7 @@ public static partial class AuditFindingParser
     /// </summary>
     public static IReadOnlyList<AuditFinding>? Parse(string reportBody, string sectionHeading)
     {
-        List<string>? sectionLines = ReadSection(reportBody, sectionHeading);
+        List<string>? sectionLines = ReadSection(reportBody, sectionHeading, out _);
         if (sectionLines is null)
         {
             return null;
@@ -59,6 +59,16 @@ public static partial class AuditFindingParser
         return findings;
     }
 
+    /// <summary>
+    /// True when a later heading follows <paramref name="sectionHeading"/>, which shows the section
+    /// was written to its end.
+    /// </summary>
+    public static bool IsSectionClosed(string reportBody, string sectionHeading)
+    {
+        ReadSection(reportBody, sectionHeading, out bool closed);
+        return closed;
+    }
+
     private static AuditFinding? ParseBlock(List<string> block, int ordinal)
     {
         string? evidenceLine = block.FirstOrDefault(l => l.StartsWith("Evidence:", StringComparison.OrdinalIgnoreCase));
@@ -94,8 +104,9 @@ public static partial class AuditFindingParser
             Issue: issue);
     }
 
-    private static List<string>? ReadSection(string reportBody, string sectionHeading)
+    private static List<string>? ReadSection(string reportBody, string sectionHeading, out bool closed)
     {
+        closed = false;
         if (string.IsNullOrWhiteSpace(reportBody))
         {
             return null;
@@ -115,6 +126,7 @@ public static partial class AuditFindingParser
         {
             if (lines[i].TrimStart().StartsWith('#'))
             {
+                closed = true;
                 break;
             }
 

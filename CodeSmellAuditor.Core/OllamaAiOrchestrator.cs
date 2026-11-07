@@ -6,6 +6,8 @@ namespace CodeSmellAuditor.Core;
 
 public class OllamaAiOrchestrator : IAiOrchestrator
 {
+    private const string OutputLimitDoneReason = "length";
+
     private readonly HttpClient _httpClient;
     private readonly AuditConfiguration _config;
 
@@ -120,6 +122,7 @@ public class OllamaAiOrchestrator : IAiOrchestrator
             using var reader = new StreamReader(networkStream);
 
             var completeReportBuilder = new StringBuilder();
+            bool truncated = false;
 
             while (await reader.ReadLineAsync() is { } jsonLine)
             {
@@ -139,6 +142,13 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                     return AuditReport.ToolFailure(
                         reportPath,
                         $"# Local Engine Failure\n\nOllama returned an error.\n\n{errorText}");
+                }
+
+                if (doc.RootElement.TryGetProperty("done_reason", out var doneReasonElement) &&
+                    doneReasonElement.ValueKind == JsonValueKind.String &&
+                    doneReasonElement.GetString() == OutputLimitDoneReason)
+                {
+                    truncated = true;
                 }
 
                 if (doc.RootElement.TryGetProperty("message", out var messageElement) &&
@@ -163,7 +173,7 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                     "Ollama returned no report content. If using a reasoning model, ensure thinking mode is disabled.");
             }
 
-            return AuditReport.FromParsedStatus(reportPath, fullTextResult);
+            return AuditReport.FromParsedStatus(reportPath, fullTextResult, truncated);
         }
         catch (HttpRequestException ex)
         {

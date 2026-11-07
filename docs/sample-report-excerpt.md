@@ -37,7 +37,7 @@ Score: 72
   Issue: Constructor takes 8 dependencies; group related configuration.
 - [F2] Line: 40 | Rule: 10-csharp-style.mdc | Fix: mechanical
   Evidence: `private int retrycount;`
-  Issue: Field name does not follow the _camelCase convention.
+  Issue: Field name does not follow the camelCase convention.
 
 ## Missing Context
 - Composition root registration not visible in this file
@@ -67,6 +67,7 @@ Tool failures (Ollama down, empty response, budget exceeded) use exit `2`, print
   "modelStatus": "REVIEW REQUIRED",
   "status": "REVIEW REQUIRED",
   "findingsSectionFound": true,
+  "findingsTruncated": false,
   "grounded": 1,
   "ungrounded": 1,
   "findings": [
@@ -89,4 +90,4 @@ The second finding is omitted here for brevity; the sidecar lists every finding,
 
 ## Interrupted reports
 
-If the model exceeds its output budget, the report may be truncated.
+If the model reaches its output limit before the findings end, the report is kept with the findings it has, `findingsTruncated` is `true`, and the final status is review required. A cut in a later section does not affect the status.

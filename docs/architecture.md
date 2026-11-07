@@ -73,7 +73,7 @@ Presentation-neutral domain API:
 3. `EnumerateTargetFiles` / `ResolveExistingCsPaths` / `ResolveReportsDirectory` / `ResolveArchitectureRulesPath` / `ResolveStackRulesPath` - storage helpers
 4. `AuditFileAsync` - analyze one file, optional token callback, ground the findings, persist the markdown report and summary sidecar when outcome is not `Failed`
 5. `AuditSystemAsync` - analyze two or more files as one architecture audit (optional manifest text)
-6. `RunBatchAsync` - headless multi-file run for tests and non-interactive callers
+6. `RunBatchAsync` - headless multi-file run without console output; the CLI drives its own loop through `CliAuditHost`
 
 ### SystemAuditPromptBuilder
 
@@ -102,7 +102,7 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 | Status line parsing | Deterministic pass/fail from `Status:` line |
 | Grounding in code, not in the model | Small local models invent or misplace findings; verifying quotes against the source is exact and costs no model calls |
 | Score is informational | Model-emitted qualitative signal; not used for exit codes or regression |
-| Env var for storage and model config | Portable across machines |
+| Env vars for storage, model, and context config | Portable across machines; `CODESMELL_NUM_CTX` and `CODESMELL_NUM_PREDICT` apply to batch and sniff, while sniff-system uses its fixed larger budget |
 
 ## Dependency direction
 
@@ -110,7 +110,7 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 Cli -> Core -> (filesystem, HttpClient)
 ```
 
-Core does not reference Cli. External AI and file I/O are behind interfaces or isolated in orchestrator implementations.
+Core does not reference Cli. AI calls and rule loading are behind interfaces. `AuditEngine` reads source files and writes reports directly through `System.IO`.
 
 ## CLI entry points
 
@@ -132,7 +132,7 @@ Core does not reference Cli. External AI and file I/O are behind interfaces or i
 
 Flags may appear before or after `sniff` / `sniff-system`. Example: `dotnet run --project CodeSmellAuditor.Cli -- --model qwen3.5:4b --non-interactive`.
 
-Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Optional `--stack` concatenates `Rules/Stacks/<name>/*.mdc` onto that set. Sniff-system uses `AuditEngine.LoadSystemRulesAsync` (Architecture packs plus optional stack packs), `AuditSystemAsync` / `AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report when the outcome is not `Failed`. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Wiring and missing-path errors at the CLI exit `2`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage` / `-Stack`; `-System` and `-Manifest` map to `sniff-system`.
+Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileAsync` with root `Rules/*.mdc`. Optional `--stack` concatenates `Rules/Stacks/<name>/*.mdc` onto that set. Sniff-system uses `AuditEngine.LoadSystemRulesAsync` (Architecture packs plus optional stack packs), `AuditSystemAsync` / `AnalyzeSystemAsync` with a larger `AuditConfiguration.ForSystemAudit` budget, and writes one `SystemAudit_*_Critique.md` report when the outcome is not `Failed`. Rules and reports always come from auditor storage; sniff modes never copy into Targets. Empty batch runs (no `*.cs` targets) exit `1`. Argument, wiring, and missing-path errors at the CLI exit `2`. Multi-path sniff loads rules once and audits files sequentially. `scripts/sniff.ps1` forwards `-Target` paths plus optional `-Model` / `-Storage` / `-Stack`; `-System` and `-Manifest` map to `sniff-system`.
 
 ### Report contract
 
@@ -140,9 +140,9 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 |-------|------|
 | `Status:` | Model verdict (`COMPLIANT` or `REVIEW REQUIRED`). Missing or invalid fails closed to review required. |
 | Findings | `## Top Findings` (single file) or `## Cross-File Findings` (system): `[F1] File: \| Line: \| Rule: \| Fix: mechanical\|judgment`, then `Evidence:` (one source line, verbatim) and `Issue:`. `- None` when there are none. |
-| Final status | With a findings section: review required when at least one finding is grounded, compliant when none are, regardless of the model Status. Without one: the model Status decides. Maps to exit `0` or `1`. |
+| Final status | With a findings section: review required when at least one finding is grounded, compliant when none are, regardless of the model Status. Without one: the model Status decides. Review required whenever the output limit cut the report before the findings ended. Maps to exit `0` or `1`. |
 | `## Grounding` | Appended by the tool: model vs final status, counts, and per-finding grounded / ungrounded with verified `file:line` or the reason. |
-| `*_Critique.summary.json` | Sidecar with `contractVersion`, `target`, `report`, `modelStatus`, `status`, `grounded`, `ungrounded`, and `findings` (`id`, `file`, `line`, `rule`, `fix`, `grounded`, `issue`, `evidence`, `note`). |
+| `*_Critique.summary.json` | Sidecar with `contractVersion`, `target`, `report`, `modelStatus`, `status`, `findingsSectionFound`, `findingsTruncated`, `grounded`, `ungrounded`, and `findings` (`id`, `file`, `line`, `rule`, `fix`, `grounded`, `issue`, `evidence`, `note`). |
 | Tool failure | Ollama unreachable, empty response, budget exceeded, or CLI wiring errors. Maps to `AuditOutcome.Failed` / exit `2`; no critique file written; the cause is printed. |
 | `Score:` | Rough qualitative signal for that run only. Model-emitted, non-deterministic; not a regression metric. Prefer Status and Top Findings over Score deltas between runs. |
 
@@ -152,4 +152,4 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 |------|---------|
 | `0` | Every audited target passed (final status `COMPLIANT`) |
 | `1` | At least one final `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
-| `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (missing Rules/Targets, bad paths, missing stack folder) |
+| `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (invalid arguments, missing Rules/Targets, bad paths, missing stack folder) |

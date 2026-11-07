@@ -6,15 +6,17 @@ namespace CodeSmellAuditor.Core;
 /// <remarks>
 /// Outcome rules, in order:
 /// 1. Missing or invalid Status line: ReviewRequired (fail closed).
-/// 2. Findings section missing: the model Status decides (legacy report shape).
-/// 3. Otherwise: ReviewRequired when at least one finding is grounded, Passed when none are,
+/// 2. Output limit hit before the findings section ended: ReviewRequired (fail closed).
+/// 3. Findings section missing: the model Status decides (legacy report shape).
+/// 4. Otherwise: ReviewRequired when at least one finding is grounded, Passed when none are,
 ///    whatever the model Status says. Ungrounded findings are model noise and never fail a run.
 /// </remarks>
 public record AuditGrounding(
     string? ModelStatus,
     AuditOutcome Outcome,
     bool FindingsSectionFound,
-    IReadOnlyList<AuditFinding> Findings)
+    IReadOnlyList<AuditFinding> Findings,
+    bool FindingsTruncated = false)
 {
     public int GroundedCount => Findings.Count(f => f.IsGrounded);
 
@@ -23,7 +25,8 @@ public record AuditGrounding(
     public static AuditGrounding Evaluate(
         string reportBody,
         string findingsHeading,
-        IReadOnlyList<SourceFile> sources)
+        IReadOnlyList<SourceFile> sources,
+        bool truncated = false)
     {
         string? modelStatus = AuditReportParser.ParseStatusValue(reportBody);
         IReadOnlyList<AuditFinding>? parsed = AuditFindingParser.Parse(reportBody, findingsHeading);
@@ -31,8 +34,10 @@ public record AuditGrounding(
             ? Array.Empty<AuditFinding>()
             : FindingGroundingValidator.Validate(parsed, sources);
 
+        bool findingsTruncated = truncated && !AuditFindingParser.IsSectionClosed(reportBody, findingsHeading);
+
         AuditOutcome outcome;
-        if (modelStatus is null)
+        if (modelStatus is null || findingsTruncated)
         {
             outcome = AuditOutcome.ReviewRequired;
         }
@@ -47,6 +52,6 @@ public record AuditGrounding(
             outcome = findings.Any(f => f.IsGrounded) ? AuditOutcome.ReviewRequired : AuditOutcome.Passed;
         }
 
-        return new AuditGrounding(modelStatus, outcome, parsed is not null, findings);
+        return new AuditGrounding(modelStatus, outcome, parsed is not null, findings, findingsTruncated);
     }
 }

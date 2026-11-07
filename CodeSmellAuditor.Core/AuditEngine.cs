@@ -294,7 +294,11 @@ public class AuditEngine
             return new FileAuditResult(resultFileName, string.Empty, AuditOutcome.Failed, reason);
         }
 
-        AuditGrounding grounding = AuditGrounding.Evaluate(auditReport.MarkdownCritique, findingsHeading, sources);
+        AuditGrounding grounding = AuditGrounding.Evaluate(
+            auditReport.MarkdownCritique,
+            findingsHeading,
+            sources,
+            auditReport.Truncated);
         string markdownContent =
             auditReport.MarkdownCritique.TrimEnd() + "\n\n" + AuditSummaryFormatter.BuildMarkdownSection(grounding);
 

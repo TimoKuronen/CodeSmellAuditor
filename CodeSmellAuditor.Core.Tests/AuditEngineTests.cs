@@ -458,6 +458,43 @@ public class AuditEngineTests
         }
     }
 
+    [Fact]
+    public async Task AuditFileAsync_TruncatedFindings_ReportsReviewRequiredAndFlagsSidecar()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string targetsPath = Path.Combine(workspace, "Targets");
+            Directory.CreateDirectory(rulesPath);
+            Directory.CreateDirectory(targetsPath);
+
+            string filePath = Path.Combine(targetsPath, "Sample.cs");
+            await File.WriteAllTextAsync(filePath, "public class Sample { }\n");
+
+            var engine = new AuditEngine(
+                new FakeRuleRepository(new AuditRule("rule.mdc", "Use interfaces.")),
+                new FakeAiOrchestrator("Status: COMPLIANT\n\n## Top Findings\n- [F1] Line: 1", truncated: true));
+
+            FileAuditResult result = await engine.AuditFileAsync(
+                filePath,
+                await engine.LoadRulesAsync(rulesPath),
+                AuditEngine.ResolveReportsDirectory(rulesPath));
+
+            Assert.Equal(AuditOutcome.ReviewRequired, result.Outcome);
+            Assert.Contains("Output limit reached", await File.ReadAllTextAsync(result.ReportPath));
+
+            string summaryPath = AuditSummaryFormatter.GetSummaryPath(result.ReportPath);
+            using var summary = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(summaryPath));
+            Assert.True(summary.RootElement.GetProperty("findingsTruncated").GetBoolean());
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
     private static string CreateTempWorkspace()
     {
         return Path.Combine(Path.GetTempPath(), $"codesmell-engine-{Guid.NewGuid():N}");
@@ -481,10 +518,12 @@ public class AuditEngineTests
     private sealed class FakeAiOrchestrator : IAiOrchestrator
     {
         private readonly string _critique;
+        private readonly bool _truncated;
 
-        public FakeAiOrchestrator(string critique)
+        public FakeAiOrchestrator(string critique, bool truncated = false)
         {
             _critique = critique;
+            _truncated = truncated;
         }
 
         public int LastSystemFileCount { get; private set; }
@@ -497,7 +536,7 @@ public class AuditEngineTests
             Action<string> onTokenReceived)
         {
             onTokenReceived(_critique);
-            return Task.FromResult(AuditReport.FromParsedStatus(file.FilePath, _critique));
+            return Task.FromResult(AuditReport.FromParsedStatus(file.FilePath, _critique, _truncated));
         }
 
         public Task<AuditReport> AnalyzeSystemAsync(
