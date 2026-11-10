@@ -2,7 +2,7 @@
 
 Local-first CLI that audits C# files and related file sets against markdown rule packs via [Ollama](https://ollama.com/). Streams the critique live and writes timestamped markdown reports.
 
-This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the model reads source text against your rule packs.
+This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the model reads source text against the rule packs.
 
 [![CI](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml/badge.svg)](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
