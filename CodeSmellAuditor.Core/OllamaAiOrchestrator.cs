@@ -123,6 +123,8 @@ public class OllamaAiOrchestrator : IAiOrchestrator
 
             var completeReportBuilder = new StringBuilder();
             bool truncated = false;
+            int? promptTokens = null;
+            int? outputTokens = null;
 
             while (await reader.ReadLineAsync() is { } jsonLine)
             {
@@ -151,6 +153,18 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                     truncated = true;
                 }
 
+                if (doc.RootElement.TryGetProperty("prompt_eval_count", out var promptCountElement) &&
+                    promptCountElement.TryGetInt32(out int promptCount))
+                {
+                    promptTokens = promptCount;
+                }
+
+                if (doc.RootElement.TryGetProperty("eval_count", out var outputCountElement) &&
+                    outputCountElement.TryGetInt32(out int outputCount))
+                {
+                    outputTokens = outputCount;
+                }
+
                 if (doc.RootElement.TryGetProperty("message", out var messageElement) &&
                     messageElement.TryGetProperty("content", out var contentElement))
                 {
@@ -173,7 +187,15 @@ public class OllamaAiOrchestrator : IAiOrchestrator
                     "Ollama returned no report content. If using a reasoning model, ensure thinking mode is disabled.");
             }
 
-            return AuditReport.FromParsedStatus(reportPath, fullTextResult, truncated);
+            AuditTokenUsage? usage = promptTokens is { } promptCountValue
+                ? new AuditTokenUsage(
+                    promptCountValue,
+                    outputTokens ?? 0,
+                    systemPrompt.Length + userPrompt.Length,
+                    _config.NumCtx)
+                : null;
+
+            return AuditReport.FromParsedStatus(reportPath, fullTextResult, truncated, usage);
         }
         catch (HttpRequestException ex)
         {

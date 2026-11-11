@@ -311,7 +311,8 @@ public class AuditEngine
         string summaryJson = AuditSummaryFormatter.BuildJson(
             targetFileLabel ?? reportBaseFileName,
             Path.GetFileName(writtenFilePath),
-            grounding);
+            grounding,
+            auditReport.Usage);
         await File.WriteAllTextAsync(
             AuditSummaryFormatter.GetSummaryPath(writtenFilePath),
             summaryJson,

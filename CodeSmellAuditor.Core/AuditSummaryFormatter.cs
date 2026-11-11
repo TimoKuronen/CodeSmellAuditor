@@ -84,7 +84,11 @@ public static class AuditSummaryFormatter
         return builder.ToString();
     }
 
-    public static string BuildJson(string targetLabel, string reportFileName, AuditGrounding grounding)
+    public static string BuildJson(
+        string targetLabel,
+        string reportFileName,
+        AuditGrounding grounding,
+        AuditTokenUsage? usage = null)
     {
         var summary = new SummaryDocument(
             ContractVersion,
@@ -107,7 +111,16 @@ public static class AuditSummaryFormatter
                     f.Issue,
                     f.Evidence.Length > 0 ? f.Evidence : null,
                     f.GroundingNote))
-                .ToList());
+                .ToList(),
+            usage is null
+                ? null
+                : new SummaryUsage(
+                    usage.PromptTokens,
+                    usage.OutputTokens,
+                    usage.PromptChars,
+                    usage.NumCtx,
+                    Math.Round(usage.CharsPerToken, 2),
+                    usage.ContextHeadroomTokens));
 
         return JsonSerializer.Serialize(summary, JsonOptions);
     }
@@ -122,7 +135,16 @@ public static class AuditSummaryFormatter
         bool FindingsTruncated,
         int Grounded,
         int Ungrounded,
-        IReadOnlyList<SummaryFinding> Findings);
+        IReadOnlyList<SummaryFinding> Findings,
+        SummaryUsage? Usage);
+
+    private sealed record SummaryUsage(
+        int PromptTokens,
+        int OutputTokens,
+        int PromptChars,
+        int NumCtx,
+        double CharsPerToken,
+        int ContextHeadroomTokens);
 
     private sealed record SummaryFinding(
         string Id,

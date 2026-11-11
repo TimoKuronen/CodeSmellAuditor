@@ -54,6 +54,38 @@ public class OllamaAiOrchestratorTests
     }
 
     [Fact]
+    public async Task AnalyzeCodeAsync_ReadsTokenCountsFromFinalChunk()
+    {
+        string streamBody =
+            """{"message":{"content":"Status: COMPLIANT"},"done":false}""" + "\n" +
+            """{"message":{"content":""},"done":true,"done_reason":"stop","prompt_eval_count":1500,"eval_count":40}""" + "\n";
+
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
+        var config = new AuditConfiguration();
+        var orchestrator = new OllamaAiOrchestrator(httpClient, config);
+
+        AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
+
+        Assert.NotNull(report.Usage);
+        Assert.Equal(1500, report.Usage.PromptTokens);
+        Assert.Equal(40, report.Usage.OutputTokens);
+        Assert.Equal(config.NumCtx, report.Usage.NumCtx);
+        Assert.True(report.Usage.PromptChars > 0);
+    }
+
+    [Fact]
+    public async Task AnalyzeCodeAsync_WithoutTokenCounts_LeavesUsageNull()
+    {
+        string streamBody = """{"message":{"content":"Status: COMPLIANT"}}""" + "\n";
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
+        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+
+        AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
+
+        Assert.Null(report.Usage);
+    }
+
+    [Fact]
     public async Task AnalyzeCodeAsync_EmptyBody_ReturnsFailed()
     {
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, "\n"));
