@@ -16,18 +16,28 @@ public record SourceFile(string FilePath, string Content);
 
 public record AuditRule(string Name, string PromptGuideline);
 
-public record AuditReport(string FilePath, string MarkdownCritique, AuditOutcome Outcome, bool Truncated = false)
+public record AuditReport(
+    string FilePath,
+    string MarkdownCritique,
+    AuditOutcome Outcome,
+    bool Truncated = false,
+    AuditTokenUsage? Usage = null)
 {
     public bool HasPassed => Outcome == AuditOutcome.Passed;
 
-    public static AuditReport FromParsedStatus(string filePath, string markdownCritique, bool truncated = false)
+    public static AuditReport FromParsedStatus(
+        string filePath,
+        string markdownCritique,
+        bool truncated = false,
+        AuditTokenUsage? usage = null)
     {
         bool passed = !truncated && AuditReportParser.ParsePassStatus(markdownCritique);
         return new AuditReport(
             filePath,
             markdownCritique,
             passed ? AuditOutcome.Passed : AuditOutcome.ReviewRequired,
-            truncated);
+            truncated,
+            usage);
     }
 
     public static AuditReport ToolFailure(string filePath, string markdownCritique) =>

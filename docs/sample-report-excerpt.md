@@ -82,11 +82,19 @@ Tool failures (Ollama down, empty response, budget exceeded) use exit `2`, print
       "evidence": "public SampleService(IClock clock, ILogger log, IStore store, IQueue queue, ...)",
       "note": "reported line 14, found at 12"
     }
-  ]
+  ],
+  "usage": {
+    "promptTokens": 3283,
+    "outputTokens": 459,
+    "promptChars": 14482,
+    "numCtx": 8192,
+    "charsPerToken": 4.41,
+    "contextHeadroomTokens": 4450
+  }
 }
 ```
 
-The second finding is omitted here for brevity; the sidecar lists every finding, grounded or not.
+The second finding is omitted here for brevity; the sidecar lists every finding, grounded or not. `usage` carries the token counts Ollama reports for the call and is absent when Ollama does not report them.
 
 ## Interrupted reports
 
