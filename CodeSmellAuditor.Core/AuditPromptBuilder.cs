@@ -7,7 +7,7 @@ public record AuditConfiguration(
     int MaxInputCharacters = 24000,
     string OllamaBaseAddress = AuditConfiguration.DefaultOllamaBaseAddress)
 {
-    public const string DefaultModelName = "qwen3.5:4b";
+    public const string DefaultModelName = "qwen3.5:9b";
     public const string DefaultOllamaBaseAddress = "http://localhost:11434";
 
     /// <summary>
