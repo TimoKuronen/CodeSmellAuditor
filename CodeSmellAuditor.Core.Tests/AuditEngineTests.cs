@@ -495,6 +495,51 @@ public class AuditEngineTests
         }
     }
 
+    [Fact]
+    public async Task AuditFileAsync_PreCheckFinding_HoldsRunAtReviewRequiredWhenModelPasses()
+    {
+        string workspace = CreateTempWorkspace();
+
+        try
+        {
+            string rulesPath = Path.Combine(workspace, "Rules");
+            string targetsPath = Path.Combine(workspace, "Targets");
+            Directory.CreateDirectory(rulesPath);
+            Directory.CreateDirectory(targetsPath);
+
+            string filePath = Path.Combine(targetsPath, "Sample.cs");
+            await File.WriteAllTextAsync(filePath, "public class Sample\n{\n    // TODO: finish\n}\n");
+
+            var engine = new AuditEngine(
+                new FakeRuleRepository(new AuditRule("rule.mdc", "Use interfaces.")),
+                new FakeAiOrchestrator("Status: COMPLIANT\nScore: 90\n\n## Top Findings\n- None\n"));
+
+            FileAuditResult result = await engine.AuditFileAsync(
+                filePath,
+                await engine.LoadRulesAsync(rulesPath),
+                AuditEngine.ResolveReportsDirectory(rulesPath));
+
+            Assert.Equal(AuditOutcome.ReviewRequired, result.Outcome);
+
+            string savedReport = await File.ReadAllTextAsync(result.ReportPath);
+            Assert.Contains("## Pre-checks", savedReport);
+            Assert.Contains("- P1 wip-marker - line 3", savedReport);
+            Assert.Contains("Final status: REVIEW REQUIRED", savedReport);
+
+            using var summary = System.Text.Json.JsonDocument.Parse(
+                await File.ReadAllTextAsync(AuditSummaryFormatter.GetSummaryPath(result.ReportPath)));
+            Assert.Equal("REVIEW REQUIRED", summary.RootElement.GetProperty("status").GetString());
+            Assert.Equal("COMPLIANT", summary.RootElement.GetProperty("modelStatus").GetString());
+            var preCheck = summary.RootElement.GetProperty("preChecks")[0];
+            Assert.Equal("wip-marker", preCheck.GetProperty("check").GetString());
+            Assert.Equal(3, preCheck.GetProperty("line").GetInt32());
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
     private static string CreateTempWorkspace()
     {
         return Path.Combine(Path.GetTempPath(), $"codesmell-engine-{Guid.NewGuid():N}");

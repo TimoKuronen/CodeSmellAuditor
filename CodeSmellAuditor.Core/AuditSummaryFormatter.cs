@@ -37,6 +37,26 @@ public static class AuditSummaryFormatter
         _ => "FAILED"
     };
 
+    public static string BuildPreCheckSection(IReadOnlyList<PreCheckFinding> preChecks)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("## Pre-checks");
+        builder.AppendLine();
+
+        if (preChecks.Count == 0)
+        {
+            builder.AppendLine("None.");
+            return builder.ToString();
+        }
+
+        foreach (PreCheckFinding finding in preChecks)
+        {
+            builder.AppendLine($"- {finding.Id} {finding.Check} - line {finding.Line}: {finding.Message}");
+        }
+
+        return builder.ToString();
+    }
+
     public static string BuildMarkdownSection(AuditGrounding grounding)
     {
         var builder = new StringBuilder();
@@ -88,7 +108,8 @@ public static class AuditSummaryFormatter
         string targetLabel,
         string reportFileName,
         AuditGrounding grounding,
-        AuditTokenUsage? usage = null)
+        AuditTokenUsage? usage = null,
+        IReadOnlyList<PreCheckFinding>? preChecks = null)
     {
         var summary = new SummaryDocument(
             ContractVersion,
@@ -120,7 +141,8 @@ public static class AuditSummaryFormatter
                     usage.PromptChars,
                     usage.NumCtx,
                     Math.Round(usage.CharsPerToken, 2),
-                    usage.ContextHeadroomTokens));
+                    usage.ContextHeadroomTokens),
+            preChecks);
 
         return JsonSerializer.Serialize(summary, JsonOptions);
     }
@@ -136,7 +158,8 @@ public static class AuditSummaryFormatter
         int Grounded,
         int Ungrounded,
         IReadOnlyList<SummaryFinding> Findings,
-        SummaryUsage? Usage);
+        SummaryUsage? Usage,
+        IReadOnlyList<PreCheckFinding>? PreChecks);
 
     private sealed record SummaryUsage(
         int PromptTokens,

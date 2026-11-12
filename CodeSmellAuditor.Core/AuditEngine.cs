@@ -213,7 +213,8 @@ public class AuditEngine
             auditReport,
             new[] { currentTarget },
             AuditPromptBuilder.FindingsHeading,
-            reportsDirectoryPath);
+            reportsDirectoryPath,
+            preChecks: SourcePreChecks.Run(currentTarget));
     }
 
     public async Task<FileAuditResult> AuditSystemAsync(
@@ -282,7 +283,8 @@ public class AuditEngine
         IReadOnlyList<SourceFile> sources,
         string findingsHeading,
         string reportsDirectoryPath,
-        string? targetFileLabel = null)
+        string? targetFileLabel = null,
+        IReadOnlyList<PreCheckFinding>? preChecks = null)
     {
         if (auditReport.Outcome == AuditOutcome.Failed)
         {
@@ -299,8 +301,16 @@ public class AuditEngine
             findingsHeading,
             sources,
             auditReport.Truncated);
-        string markdownContent =
-            auditReport.MarkdownCritique.TrimEnd() + "\n\n" + AuditSummaryFormatter.BuildMarkdownSection(grounding);
+
+        // Pre-check findings are exact, so they hold the run at review required even when the model passes.
+        if (preChecks is { Count: > 0 } && grounding.Outcome == AuditOutcome.Passed)
+        {
+            grounding = grounding with { Outcome = AuditOutcome.ReviewRequired };
+        }
+
+        string markdownContent = auditReport.MarkdownCritique.TrimEnd() + "\n\n"
+            + (preChecks is null ? string.Empty : AuditSummaryFormatter.BuildPreCheckSection(preChecks) + "\n")
+            + AuditSummaryFormatter.BuildMarkdownSection(grounding);
 
         string writtenFilePath = await SaveReportToFileSystemAsync(
             reportsDirectoryPath,
@@ -312,7 +322,8 @@ public class AuditEngine
             targetFileLabel ?? reportBaseFileName,
             Path.GetFileName(writtenFilePath),
             grounding,
-            auditReport.Usage);
+            auditReport.Usage,
+            preChecks);
         await File.WriteAllTextAsync(
             AuditSummaryFormatter.GetSummaryPath(writtenFilePath),
             summaryJson,
