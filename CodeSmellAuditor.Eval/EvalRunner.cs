@@ -51,7 +51,11 @@ public sealed class EvalRunner
         FileAuditResult result;
         try
         {
-            result = await _engine.AuditFileAsync(fixturePath, rules, reportsDirectory);
+            result = await _engine.AuditFileAsync(
+                fixturePath,
+                rules,
+                reportsDirectory,
+                stackName: key.Stack);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {

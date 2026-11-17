@@ -185,7 +185,8 @@ public class AuditEngine
         string filePath,
         IReadOnlyList<AuditRule> rules,
         string reportsDirectoryPath,
-        Action<string>? onTokenReceived = null)
+        Action<string>? onTokenReceived = null,
+        string? stackName = null)
     {
         string absolutePath = Path.GetFullPath(filePath);
         if (!File.Exists(absolutePath))
@@ -214,7 +215,7 @@ public class AuditEngine
             new[] { currentTarget },
             AuditPromptBuilder.FindingsHeading,
             reportsDirectoryPath,
-            preChecks: SourcePreChecks.Run(currentTarget));
+            preChecks: SourcePreChecks.Run(currentTarget, stackName));
     }
 
     public async Task<FileAuditResult> AuditSystemAsync(

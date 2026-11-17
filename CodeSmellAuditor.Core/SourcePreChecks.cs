@@ -5,7 +5,9 @@ namespace CodeSmellAuditor.Core;
 /// <summary>
 /// Exact, model-free checks for rules that can be decided from the source text alone:
 /// one primary type per file, file name matching the primary type, unresolved WIP markers and
-/// stubs, and blocks of commented-out code. Lexical only; no Roslyn.
+/// stubs, blocks of commented-out code, static mutable fields, private field naming, constructor
+/// size, enum-only files, empty catch blocks, hidden dependency lookups, non-ASCII comments, and
+/// regions. Lexical only; no Roslyn.
 /// </summary>
 public static class SourcePreChecks
 {
@@ -13,6 +15,14 @@ public static class SourcePreChecks
     public const string FileNameMismatch = "file-name-mismatch";
     public const string WipMarker = "wip-marker";
     public const string CommentedOutCode = "commented-out-code";
+    public const string StaticMutableField = "static-mutable-field";
+    public const string PrivateFieldNaming = "private-field-naming";
+    public const string ConstructorTooLarge = "constructor-too-large";
+    public const string EnumOnlyFile = "enum-only-file";
+    public const string EmptyCatch = "empty-catch";
+    public const string HiddenDependencyLookup = "hidden-dependency-lookup";
+    public const string NonAsciiComment = "non-ascii-comment";
+    public const string RegionBlock = "region-block";
 
     private const int MinimumCommentedCodeLines = 2;
 
@@ -26,14 +36,17 @@ public static class SourcePreChecks
     private static readonly Regex NotImplementedStub = new(@"\bNotImplementedException\b", RegexOptions.Compiled);
     private static readonly Regex ElseLine = new(@"^\}?\s*else\b", RegexOptions.Compiled);
 
-    public static IReadOnlyList<PreCheckFinding> Run(SourceFile file)
+    public static IReadOnlyList<PreCheckFinding> Run(SourceFile file, string? stackName = null)
     {
         IReadOnlyList<CSharpSourceScanner.ScannedLine> lines = CSharpSourceScanner.Scan(file.Content);
+        IReadOnlyList<CSharpMemberScanner.Declaration> declarations = CSharpMemberScanner.Scan(lines);
 
         var raw = new List<(int Line, string Check, string Message, string? Evidence)>();
         raw.AddRange(CheckTopLevelTypes(file.FilePath, lines));
         raw.AddRange(CheckWipMarkers(lines));
         raw.AddRange(CheckCommentedOutCode(lines));
+        raw.AddRange(DeclarationPreChecks.Run(lines, declarations));
+        raw.AddRange(CodePatternPreChecks.Run(lines, stackName));
 
         return raw
             .OrderBy(item => item.Line)

@@ -85,7 +85,23 @@ Assembles architecture-mode system/user prompts (manifest + multi-file sources) 
 
 ### Pre-checks
 
-`SourcePreChecks` decides, from the source text alone, the rules that need no judgment: more than one top-level type per file, a file name that differs from its only type, unresolved `TODO`/`FIXME`/`HACK`/`TEMP`/`WIP` comments, `#if false` blocks and `NotImplementedException` stubs, and runs of two or more commented-out code lines. `CSharpSourceScanner` splits each line into code and comment text and blanks string and char literals, so literal content is never read as a marker or a declaration; it is a lexical pass, not a parser. `AuditEngine` runs the checks for single-file audits, appends a `## Pre-checks` section, and writes the findings to the sidecar. Any finding holds the final status at review required even when the model reports compliant. System audits do not run them.
+`SourcePreChecks` decides, from the source text alone, the rules that need no judgment:
+
+| Check | Fires on |
+|-------|----------|
+| `multiple-top-level-types`, `file-name-mismatch` | More than one top-level type per file; a file name that differs from its only type |
+| `wip-marker` | Unresolved `TODO`/`FIXME`/`HACK`/`TEMP`/`WIP` comments, `#if false` blocks, `NotImplementedException` stubs |
+| `commented-out-code` | Runs of two or more commented-out code lines |
+| `static-mutable-field` | A `static` field that is neither `readonly` nor `const` in a non-static type |
+| `private-field-naming` | A private instance field that starts uppercase or with `m_`, `s_`, `k_` (`_camelCase` is accepted) |
+| `constructor-too-large` | More than five constructor parameters on a class or struct, primary constructors included; positional records are exempt |
+| `enum-only-file` | A file whose only top-level type is a non-public enum |
+| `empty-catch` | A `catch` block with no statements, whether or not it holds a comment |
+| `hidden-dependency-lookup` | `ServiceLocator.` access; with the Unity stack also `FindObjectOfType` and its variants, `GameObject.Find`, `Resources.Load` |
+| `non-ascii-comment` | Comment text with non-ASCII characters (one finding per file with the line count) |
+| `region-block` | With the Unity stack, `#region` names outside Serialized Fields, Lifecycle, Public API, Private Helpers (one finding per file) |
+
+`CSharpSourceScanner` splits each line into code and comment text and blanks string and char literals, so literal content is never read as a marker or a declaration. `CSharpMemberScanner` tracks braces to separate type bodies from method and property bodies and lists the type declarations and the member statements directly inside type bodies; the declaration checks read from it. Both are lexical passes, not parsers. `AuditEngine` runs the checks for single-file audits with the active stack name, appends a `## Pre-checks` section, and writes the findings to the sidecar. Any finding holds the final status at review required even when the model reports compliant. System audits do not run them.
 
 ### CliAuditHost
 
