@@ -18,3 +18,4 @@ RulePackVersion: 1.7.0
 - Flag classes with more than five constructor dependencies as possible SRP violations.
 - Public types and non-obvious public boundary methods should have XML summaries; flag redundant summaries that restate the name.
 - Inline comments explain why - not line narration or inspector setup.
+- Comments use plain ASCII characters only.

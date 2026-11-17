@@ -39,7 +39,8 @@ public sealed class CliAuditHost
                 filePath,
                 fileName,
                 rules,
-                reportsDirectoryPath);
+                reportsDirectoryPath,
+                stackName);
 
             PrintReportPath(result);
             fileResults.Add(result);
@@ -76,7 +77,8 @@ public sealed class CliAuditHost
                 absolutePath,
                 fileName,
                 rules,
-                reportsDirectoryPath);
+                reportsDirectoryPath,
+                stackName);
 
             PrintReportPath(result);
             fileResults.Add(result);
@@ -166,7 +168,8 @@ public sealed class CliAuditHost
         string filePath,
         string fileName,
         IReadOnlyList<AuditRule> rules,
-        string reportsDirectoryPath)
+        string reportsDirectoryPath,
+        string? stackName)
     {
         AnsiConsole.WriteLine();
 
@@ -193,7 +196,8 @@ public sealed class CliAuditHost
                         }
 
                         Console.Write(token);
-                    });
+                    },
+                    stackName);
             });
 
         AnsiConsole.WriteLine();

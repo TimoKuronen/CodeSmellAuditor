@@ -17,7 +17,7 @@ This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the 
 - Local Ollama only — source stays on your machine
 - Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
 - Grounded findings: each finding quotes the source, the quote is verified against the audited files, and pass/fail counts verified findings only (exit `0`/`1`); a report cut off before its findings end cannot pass; tool/wiring failures exit `2` with the cause printed and skip report persistence; `Score` is informational only
-- Deterministic pre-checks on every single-file audit, independent of the model: one primary type per file, file name matching the type, unresolved WIP markers and stubs, and commented-out code blocks; any hit holds the run at review required
+- Deterministic pre-checks on every single-file audit, independent of the model: one primary type per file, file name matching the type, unresolved WIP markers and stubs, commented-out code blocks, static mutable fields, private field naming, constructor size, enum-only files, empty catch blocks, hidden dependency lookups, non-ASCII comments, and regions; any hit holds the run at review required
 - Compact `*.summary.json` sidecar next to each report (status, grounded/ungrounded counts, one entry per finding, token usage) for scripts and tooling
 - Evaluation project that audits fixed fixtures against answer keys and records hits, noise, timing, and token use per run in a results table with a comparison to the previous run
 - Layered Core / Cli with interfaces for rule loading and AI orchestration

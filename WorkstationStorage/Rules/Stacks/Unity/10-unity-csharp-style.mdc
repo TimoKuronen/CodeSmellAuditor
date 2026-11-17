@@ -11,3 +11,5 @@ Mode: stack-unity
 - ScriptableObject config assets: prefer auto-properties or public fields; flag passthrough getters with no logic.
 - Flag runtime mutation of shared ScriptableObject assets in gameplay code.
 - Inline comments explain why - not line narration or inspector setup.
+- No `#region` blocks by default; where a project uses regions, only the fixed names Serialized Fields, Lifecycle, Public API, Private Helpers.
+- Flag hidden dependency lookups (`FindObjectOfType`, `GameObject.Find`, `Resources.Load`) in logic code; inject the dependency instead.
