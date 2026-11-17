@@ -159,3 +159,11 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 | `0` | Every audited target passed (final status `COMPLIANT`) |
 | `1` | At least one final `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
 | `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (invalid arguments, missing Rules/Targets, bad paths, missing stack folder) |
+
+## Evaluation
+
+`CodeSmellAuditor.Eval` scores the audit output against fixed answer keys. `eval/fixtures/` holds five C# fixtures, each with a `*.key.json`: planted rule-shaped issues, planted judgment-level defects, a clean control that must come back `COMPLIANT`, a file near the input character budget, and a Unity file audited with `--stack Unity`. A key item has an id, a kind (`blatant` or `judgment`), a line range, text patterns, and optionally the pre-check that can satisfy it.
+
+Each fixture is audited through `AuditEngine` and read back from its summary sidecar. A grounded finding hits an item when its evidence line lies within the item's range (plus a two-line tolerance, with the line re-derived from where the evidence appears in the source) and its text matches a pattern; each finding satisfies at most one item. Grounded findings that satisfy none are noise, and any finding on the clean control is a false positive. Pre-check hits are counted separately from model hits.
+
+A run repeats the corpus several times and records the mean and min-max spread per metric as one row of an append-only CSV, with the git sha and content hashes of the corpus, prompt, rule packs, and Core sources. A regenerated markdown table compares each row with the previous row of the same model and marks changes inside the repeat spread. Claude reading cost is estimated from the size of the report, the sidecar, and the source for each sniff mode.
