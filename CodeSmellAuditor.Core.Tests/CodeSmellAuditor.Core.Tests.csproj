@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CodeSmellAuditor.Core\CodeSmellAuditor.Core.csproj" />
     <ProjectReference Include="..\CodeSmellAuditor.Cli\CodeSmellAuditor.Cli.csproj" />
+    <ProjectReference Include="..\CodeSmellAuditor.Fix\CodeSmellAuditor.Fix.csproj" />
     <ProjectReference Include="..\CodeSmellAuditor.Eval\CodeSmellAuditor.Eval.csproj" />
   </ItemGroup>
 
