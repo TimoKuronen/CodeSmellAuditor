@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeSmellAuditor.Core\CodeSmellAuditor.Core.csproj" />
+    <ProjectReference Include="..\CodeSmellAuditor.Fix\CodeSmellAuditor.Fix.csproj" />
   </ItemGroup>
 
   <ItemGroup>

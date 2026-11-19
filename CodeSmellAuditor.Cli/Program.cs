@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using CodeSmellAuditor.Cli;
 using CodeSmellAuditor.Core;
+using CodeSmellAuditor.Fix;
 using Spectre.Console;
 
 Console.OutputEncoding = Encoding.UTF8;
@@ -17,6 +18,21 @@ catch (ArgumentException ex)
 {
     AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
     Environment.ExitCode = 2;
+    return;
+}
+
+if (cliArgs.Mode == CliMode.Fix)
+{
+    try
+    {
+        Environment.ExitCode = await new CliFixHost(new FixEngine(FixerRegistry.CreateDefault())).RunAsync(cliArgs);
+    }
+    catch (Exception ex) when (ex is FileNotFoundException or ArgumentException or DirectoryNotFoundException)
+    {
+        AnsiConsole.MarkupLine($"[bold red]ERROR:[/] {Markup.Escape(ex.Message)}");
+        Environment.ExitCode = 2;
+    }
+
     return;
 }
 

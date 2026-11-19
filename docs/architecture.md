@@ -49,6 +49,7 @@ flowchart TB
 |---------|---------------|
 | CodeSmellAuditor.Cli | Composition root, `CliAuditHost` batch UX (Spectre Status + streaming), path configuration |
 | CodeSmellAuditor.Core | `AuditEngine` file-level audit API, interfaces, Ollama HTTP streaming, prompt budgeting |
+| CodeSmellAuditor.Fix | Roslyn-based style fixers, `FixEngine` planning and validation, `FixApplier` file writes, line diff |
 
 ## Key types
 
@@ -103,6 +104,12 @@ Assembles architecture-mode system/user prompts (manifest + multi-file sources) 
 
 `CSharpSourceScanner` splits each line into code and comment text and blanks string and char literals, so literal content is never read as a marker or a declaration. `CSharpMemberScanner` tracks braces to separate type bodies from method and property bodies and lists the type declarations and the member statements directly inside type bodies; the declaration checks read from it. Both are lexical passes, not parsers. `AuditEngine` runs the checks for single-file audits with the active stack name, appends a `## Pre-checks` section, and writes the findings to the sidecar. Any finding holds the final status at review required even when the model reports compliant. System audits do not run them.
 
+### Style fixes
+
+`CodeSmellAuditor.Fix` rewrites files for rules that can be fixed mechanically, without a model. Each rule has one `IStyleFixer` that is deterministic and idempotent and reports its edits (`FixChange`) and the violations it left alone (`FixSkip`, with the reason). `PrivateFieldNamingFixer` renames private instance fields that are not camelCase through Roslyn's symbol rename, so every reference in the file follows and name conflicts are qualified. It skips fields that carry attributes other than a small neutral set (the name may be a serialization contract), fields of partial types, names that would be keywords, and names that already exist in the type. It uses the same predicate as the `private-field-naming` pre-check.
+
+`FixEngine` accepts a fixer result only when the file compiles with the same number of errors as before and a second run of the fixer changes nothing; a rejected result leaves the file as it was and is reported. The compilation uses the .NET runtime references only, so types from other assemblies stay unresolved on both sides of the comparison. `FixApplier` writes a file only if its hash still matches the one read when planning, keeps the original encoding, BOM and line endings, and writes a `.bak` copy when the file is not inside a git checkout. `LineDiff` produces the changed lines with context for the preview.
+
 ### CliAuditHost
 
 Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path. `RunSniffSystemAsync` uses one Status wrap for the whole combined call.
@@ -129,9 +136,10 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 
 ```
 Cli -> Core -> (filesystem, HttpClient)
+Cli -> Fix  -> (Roslyn, filesystem)
 ```
 
-Core does not reference Cli. AI calls and rule loading are behind interfaces. `AuditEngine` reads source files and writes reports directly through `System.IO`.
+Core does not reference Cli or Fix; Fix does not reference Core. AI calls and rule loading are behind interfaces. `AuditEngine` reads source files and writes reports directly through `System.IO`.
 
 ## CLI entry points
 
@@ -140,6 +148,7 @@ Core does not reference Cli. AI calls and rule loading are behind interfaces. `A
 | Batch | no args | `WorkstationStorage/Targets/*.cs` | Summary; exit `0`/`1`/`2`; Enter-to-exit unless `--non-interactive` |
 | Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; exit `0`/`1`/`2` from aggregate outcome |
 | Sniff-system | `sniff-system path\to\A.cs path\to\B.cs [...]` | two or more external paths; optional `--manifest` | one combined architecture report; no Enter wait; exit `0`/`1`/`2` |
+| Fix | `fix path\to\Folder-or-File.cs [...]` | files and folders, scanned recursively; no rules folder or Ollama needed | diff preview, then one confirmation; `--yes` writes without asking, `--dry-run` and `--non-interactive` never write |
 
 ### Shared options
 
@@ -175,6 +184,8 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 | `0` | Every audited target passed (final status `COMPLIANT`) |
 | `1` | At least one final `REVIEW REQUIRED`, or empty batch (nothing to pass); no tool failures |
 | `2` | At least one tool/wiring failure (`Failed`), or CLI could not start the audit (invalid arguments, missing Rules/Targets, bad paths, missing stack folder) |
+
+`fix` exit codes: `0` when nothing is pending or everything planned was written, `1` when planned changes were not written (dry run, declined, or a file changed after planning), `2` when a fix was rejected or a path was invalid.
 
 ## Evaluation
 

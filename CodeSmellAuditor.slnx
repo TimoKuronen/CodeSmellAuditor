@@ -3,4 +3,5 @@
   <Project Path="CodeSmellAuditor.Core/CodeSmellAuditor.Core.csproj" />
   <Project Path="CodeSmellAuditor.Core.Tests/CodeSmellAuditor.Core.Tests.csproj" />
   <Project Path="CodeSmellAuditor.Eval/CodeSmellAuditor.Eval.csproj" />
+  <Project Path="CodeSmellAuditor.Fix/CodeSmellAuditor.Fix.csproj" />
 </Solution>

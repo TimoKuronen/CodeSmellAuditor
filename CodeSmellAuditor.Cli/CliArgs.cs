@@ -4,7 +4,8 @@ public enum CliMode
 {
     Batch,
     Sniff,
-    SniffSystem
+    SniffSystem,
+    Fix
 }
 
 public sealed record CliArgs(
@@ -14,7 +15,10 @@ public sealed record CliArgs(
     string? Storage = null,
     bool NonInteractive = false,
     string? Manifest = null,
-    string? Stack = null)
+    string? Stack = null,
+    bool Yes = false,
+    bool DryRun = false,
+    IReadOnlyList<string>? FixPaths = null)
 {
     public static CliArgs Parse(string[] args)
     {
@@ -23,6 +27,8 @@ public sealed record CliArgs(
         string? manifest = null;
         string? stack = null;
         bool nonInteractive = false;
+        bool yes = false;
+        bool dryRun = false;
         var positional = new List<string>();
 
         for (int i = 0; i < args.Length; i++)
@@ -59,13 +65,49 @@ public sealed record CliArgs(
                 continue;
             }
 
+            if (string.Equals(token, "--yes", StringComparison.OrdinalIgnoreCase))
+            {
+                yes = true;
+                continue;
+            }
+
+            if (string.Equals(token, "--dry-run", StringComparison.OrdinalIgnoreCase))
+            {
+                dryRun = true;
+                continue;
+            }
+
             if (token.StartsWith('-'))
             {
                 throw new ArgumentException(
-                    $"Unknown option '{token}'. Supported: --model, --storage, --manifest, --stack, --non-interactive.");
+                    $"Unknown option '{token}'. Supported: --model, --storage, --manifest, --stack, --non-interactive, --yes, --dry-run.");
             }
 
             positional.Add(token);
+        }
+
+        bool isFix = positional.Count > 0 && string.Equals(positional[0], "fix", StringComparison.OrdinalIgnoreCase);
+        if ((yes || dryRun) && !isFix)
+        {
+            throw new ArgumentException("--yes and --dry-run are only valid with fix.");
+        }
+
+        if (isFix)
+        {
+            if (yes && dryRun)
+            {
+                throw new ArgumentException("--yes and --dry-run cannot be combined.");
+            }
+
+            if (positional.Count < 2)
+            {
+                throw new ArgumentException("fix requires at least one .cs file or folder path.");
+            }
+
+            IReadOnlyList<string> fixPaths = positional.Skip(1).Select(p => p.Trim().Trim('"')).ToList();
+            return new CliArgs(
+                CliMode.Fix, Array.Empty<string>(), model, storage, nonInteractive,
+                Stack: stack, Yes: yes, DryRun: dryRun, FixPaths: fixPaths);
         }
 
         if (positional.Count == 0)
@@ -96,7 +138,7 @@ public sealed record CliArgs(
         }
 
         throw new ArgumentException(
-            $"Unknown command '{positional[0]}'. Use no args for Targets batch, sniff <path.cs> [...], or sniff-system <path.cs> <path.cs> [...].");
+            $"Unknown command '{positional[0]}'. Use no args for Targets batch, sniff <path.cs> [...], sniff-system <path.cs> <path.cs> [...], or fix <path> [...].");
     }
 
     private static IReadOnlyList<string> ParseCsPaths(List<string> positional, int minCount, string commandName)
