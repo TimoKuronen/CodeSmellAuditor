@@ -7,6 +7,7 @@ public static class FixerRegistry
 {
     public static IReadOnlyList<IStyleFixer> CreateDefault() => new IStyleFixer[]
     {
-        new PrivateFieldNamingFixer()
+        new PrivateFieldNamingFixer(),
+        new RegionFixer()
     };
 }
