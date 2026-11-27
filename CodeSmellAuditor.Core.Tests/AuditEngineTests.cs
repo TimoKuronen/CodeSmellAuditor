@@ -578,7 +578,8 @@ public class AuditEngineTests
         public Task<AuditReport> AnalyzeCodeAsync(
             SourceFile file,
             IEnumerable<AuditRule> rules,
-            Action<string> onTokenReceived)
+            Action<string> onTokenReceived,
+            CancellationToken cancellationToken = default)
         {
             onTokenReceived(_critique);
             return Task.FromResult(AuditReport.FromParsedStatus(file.FilePath, _critique, _truncated));
@@ -588,7 +589,8 @@ public class AuditEngineTests
             IReadOnlyList<SourceFile> files,
             string? manifestText,
             IEnumerable<AuditRule> rules,
-            Action<string> onTokenReceived)
+            Action<string> onTokenReceived,
+            CancellationToken cancellationToken = default)
         {
             LastSystemFileCount = files.Count;
             LastManifestText = manifestText;
@@ -603,7 +605,8 @@ public class AuditEngineTests
         public Task<AuditReport> AnalyzeCodeAsync(
             SourceFile file,
             IEnumerable<AuditRule> rules,
-            Action<string> onTokenReceived)
+            Action<string> onTokenReceived,
+            CancellationToken cancellationToken = default)
         {
             return Task.FromResult(
                 AuditReport.ToolFailure(file.FilePath, "# Local Engine Failure\n\nUnavailable"));
@@ -613,7 +616,8 @@ public class AuditEngineTests
             IReadOnlyList<SourceFile> files,
             string? manifestText,
             IEnumerable<AuditRule> rules,
-            Action<string> onTokenReceived)
+            Action<string> onTokenReceived,
+            CancellationToken cancellationToken = default)
         {
             return Task.FromResult(
                 AuditReport.ToolFailure(SystemAuditIdentity.ReportBaseName, "# Local Engine Failure\n\nUnavailable"));

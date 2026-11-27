@@ -11,7 +11,7 @@ public sealed record EvalPaths(string Root)
 
     public string CoreDir => Path.Combine(Root, "CodeSmellAuditor.Core");
 
-    public string BenchDir => Path.Combine(Root, ".agent", "benchmark");
+    public string BenchDir => Path.Combine(Root, "eval", "results");
 
     public string ResultsCsv => Path.Combine(BenchDir, "results.csv");
 

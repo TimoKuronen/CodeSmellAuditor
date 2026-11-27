@@ -20,7 +20,7 @@ public sealed class EvalRunner
         _httpClient = httpClient;
         _paths = paths;
         _model = config.ModelName;
-        _engine = new AuditEngine(new MarkdownRuleRepository(), new OllamaAiOrchestrator(httpClient, config));
+        _engine = new AuditEngine(new MarkdownRuleRepository(), new OllamaAiOrchestrator(new OllamaChatClient(httpClient), config));
     }
 
     /// <summary>
@@ -82,13 +82,13 @@ public sealed class EvalRunner
             summary.Usage?.PromptTokens ?? 0,
             summary.Usage?.OutputTokens ?? 0,
             summary.Usage?.ContextHeadroomTokens ?? 0,
-            ClaudeTokenEstimator.Estimate(reportText),
-            ClaudeTokenEstimator.Estimate(sidecarJson),
-            ClaudeTokenEstimator.Estimate(source));
+            ReviewTokenEstimator.Estimate(reportText),
+            ReviewTokenEstimator.Estimate(sidecarJson),
+            ReviewTokenEstimator.Estimate(source));
     }
 
     private static FixtureRunResult Failed(AnswerKey key, double seconds, string source) =>
-        new(FixtureScorer.Score(key, null), seconds, 0, 0, 0, 0, 0, ClaudeTokenEstimator.Estimate(source));
+        new(FixtureScorer.Score(key, null), seconds, 0, 0, 0, 0, 0, ReviewTokenEstimator.Estimate(source));
 
     private async Task<IReadOnlyList<AuditRule>> LoadRulesAsync(string? stack)
     {

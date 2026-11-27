@@ -56,9 +56,9 @@ public static class RunAggregator
             PromptTokens = PerRepeatMean(r => r.PromptTokens),
             OutputTokens = PerRepeatMean(r => r.OutputTokens),
             MinHeadroomTokens = withUsage.Count == 0 ? 0 : withUsage.Min(r => r.HeadroomTokens),
-            ClaudeSummarizeTokens = PerRepeatMean(r => r.ReportTokens),
-            ClaudeSidecarTokens = PerRepeatMean(r => r.SidecarTokens),
-            ClaudeVerifyTokens = PerRepeatMean(r => r.ReportTokens + r.SourceTokens)
+            ReadReportTokens = PerRepeatMean(r => r.ReportTokens),
+            ReadSidecarTokens = PerRepeatMean(r => r.SidecarTokens),
+            ReadVerifyTokens = PerRepeatMean(r => r.ReportTokens + r.SourceTokens)
         };
     }
 

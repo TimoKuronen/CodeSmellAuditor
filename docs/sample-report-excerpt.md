@@ -47,7 +47,8 @@ Group the queue and store settings into one options object.
 
 ## Pre-checks
 
-- P1 wip-marker - line 31: Unresolved TODO marker; resolve it or track it outside the code.
+- P1 constructor-too-large - line 12: Constructor of 'SampleService' takes 8 parameters; more than 5 suggests too many dependencies.
+- P2 wip-marker - line 31: Unresolved TODO marker; resolve it or track it outside the code.
 
 ## Grounding
 
@@ -57,7 +58,7 @@ Model status: REVIEW REQUIRED | Final status: REVIEW REQUIRED | Grounded: 1 | Un
 - F2 ungrounded - evidence not found in SampleService.cs
 ```
 
-Everything above `## Pre-checks` is model output. For single-file audits the tool first appends `## Pre-checks`, exact findings decided from the source text (more than one top-level type, a file name that differs from its type, WIP markers and stubs, commented-out code blocks); any pre-check finding keeps the final status at review required even when the model reports compliant. The tool then appends `## Grounding` after checking each Evidence quote against the audited source: whitespace differences are ignored, `...` marks a gap within one line, and very short quotes are rejected. With a findings section, the final status is review required only when at least one finding is grounded; ungrounded findings never fail a run. Without a findings section, the model `Status:` line decides, and a missing or invalid Status fails closed.
+Everything above `## Pre-checks` is model output. For single-file audits the tool first appends `## Pre-checks`, exact findings decided from the source text (the checks are listed under [Pre-checks](architecture.md#pre-checks)); any pre-check finding keeps the final status at review required even when the model reports compliant. The tool then appends `## Grounding` after checking each Evidence quote against the audited source: whitespace differences are ignored, `...` marks a gap within one line, and very short quotes are rejected. With a findings section, the final status is review required only when at least one finding is grounded; ungrounded findings never fail a run. Without a findings section, the model `Status:` line decides, and a missing or invalid Status fails closed.
 
 Tool failures (Ollama down, empty response, budget exceeded) use exit `2`, print the cause, and do not write a critique file. `Score:` is a rough qualitative signal for that run only - not a regression metric.
 
@@ -90,6 +91,13 @@ Tool failures (Ollama down, empty response, budget exceeded) use exit `2`, print
   "preChecks": [
     {
       "id": "P1",
+      "check": "constructor-too-large",
+      "line": 12,
+      "message": "Constructor of 'SampleService' takes 8 parameters; more than 5 suggests too many dependencies.",
+      "evidence": "public SampleService(IClock clock, ILogger log, IStore store, IQueue queue, ...)"
+    },
+    {
+      "id": "P2",
       "check": "wip-marker",
       "line": 31,
       "message": "Unresolved TODO marker; resolve it or track it outside the code.",

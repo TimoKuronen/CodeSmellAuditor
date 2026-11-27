@@ -1,7 +1,7 @@
 namespace CodeSmellAuditor.Eval;
 
 /// <summary>
-/// One fixture audit: its score plus the time, Ollama token and Claude-reading measurements.
+/// One fixture audit: its score plus the time, Ollama token and reading-cost measurements.
 /// </summary>
 public sealed record FixtureRunResult(
     FixtureScore Score,

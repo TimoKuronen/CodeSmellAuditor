@@ -43,9 +43,9 @@ public sealed record RunDelta(bool Comparable, IReadOnlyList<string> Changed, IR
             new("Seconds per file", previous.SecondsPerFile, current.SecondsPerFile, false),
             new("Ollama prompt tokens", previous.PromptTokens, current.PromptTokens, false),
             new("Ollama output tokens", previous.OutputTokens, current.OutputTokens, false),
-            new("Claude tokens, summarize (est)", previous.ClaudeSummarizeTokens, current.ClaudeSummarizeTokens, false),
-            new("Claude tokens, sidecar only (est)", previous.ClaudeSidecarTokens, current.ClaudeSidecarTokens, false),
-            new("Claude tokens, verify (est)", previous.ClaudeVerifyTokens, current.ClaudeVerifyTokens, false)
+            new("Reading tokens, report (est)", previous.ReadReportTokens, current.ReadReportTokens, false),
+            new("Reading tokens, sidecar only (est)", previous.ReadSidecarTokens, current.ReadSidecarTokens, false),
+            new("Reading tokens, report and source (est)", previous.ReadVerifyTokens, current.ReadVerifyTokens, false)
         };
 
         return new RunDelta(comparable, changed, lines);

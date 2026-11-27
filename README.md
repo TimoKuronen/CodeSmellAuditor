@@ -1,13 +1,11 @@
 # CodeSmellAuditor
 
-Local-first CLI that audits C# files and related file sets against markdown rule packs via [Ollama](https://ollama.com/). Streams the critique live and writes timestamped markdown reports.
+Local-first C# code review CLI. It audits files and related file sets against markdown rule packs via [Ollama](https://ollama.com/), streams the critique live, and writes timestamped markdown reports.
 
-This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the model reads source text against the rule packs.
+Rules that need no judgment are decided in code: deterministic pre-checks run beside the model, and Roslyn fixers rewrite mechanical style violations. Model findings count only when the code they quote is found in the audited source.
 
 [![CI](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml/badge.svg)](https://github.com/TimoKuronen/CodeSmellAuditor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-![CodeSmellAuditor terminal output](docs/images/terminal-output.png)
 
 ## Highlights
 
@@ -17,21 +15,24 @@ This is an **AI-assisted semantic reviewer**, not a Roslyn/static analyzer: the 
 - Local Ollama only — source stays on your machine
 - Streaming console output with Spectre Status until first token; timestamped reports under `WorkstationStorage/Reports/`
 - Grounded findings: each finding quotes the source, the quote is verified against the audited files, and pass/fail counts verified findings only (exit `0`/`1`); a report cut off before its findings end cannot pass; tool/wiring failures exit `2` with the cause printed and skip report persistence; `Score` is informational only
-- Deterministic pre-checks on every single-file audit, independent of the model: one primary type per file, file name matching the type, unresolved WIP markers and stubs, commented-out code blocks, static mutable fields, private field naming, constructor size, enum-only files, empty catch blocks, hidden dependency lookups, non-ASCII comments, and regions; any hit holds the run at review required
-- `fix` rewrites files for mechanical style rules without a model (private field naming through Roslyn rename, region removal), shows a diff, asks once, and writes with the original encoding and line endings; every result is checked to compile with the same errors and to be idempotent
+- Deterministic pre-checks on every single-file audit, independent of the model: one primary type per file, file name matching the type, unresolved WIP markers and stubs, commented-out code blocks, static mutable fields, private field naming, constructor size, enum-only files, empty catch blocks, service locator access, and non-ASCII comments; the Unity stack adds Unity lookup calls and region names; any hit holds the run at review required
+- `fix` rewrites files for mechanical style rules without a model (private field naming through Roslyn rename, region removal), shows a diff, writes all changes or a file-by-file selection after confirmation, and keeps the original encoding and line endings; every result is checked to compile with the same number of errors and to be idempotent
 - Compact `*.summary.json` sidecar next to each report (status, grounded/ungrounded counts, one entry per finding, token usage) for scripts and tooling
 - Evaluation project that audits fixed fixtures against answer keys and records hits, noise, timing, and token use per run in a results table with a comparison to the previous run
-- Layered Core / Cli with interfaces for rule loading and AI orchestration
+- Layered Core, Fix, Cli, and Eval projects with interfaces for rule loading, AI orchestration, and style fixers
 - xUnit tests (fakes; no Ollama in CI) and Ubuntu GitHub Actions
 
 ## Architecture
 
 ```text
-Program.cs (composition root: HttpClient + config)
-  -> MarkdownRuleRepository / OllamaAiOrchestrator
-  -> AuditEngine
-  -> CliAuditHost (batch + sniff + sniff-system)
-  -> CliFixHost -> FixEngine (Roslyn fixers)
+Cli   Program.cs (composition root: AppConfiguration + HttpClient)
+        -> CliAuditHost (batch + sniff + sniff-system) -> AuditEngine
+        -> CliFixHost -> FixEngine (Roslyn fixers)
+Core  AuditEngine
+        -> MarkdownRuleRepository
+        -> OllamaAiOrchestrator -> OllamaChatClient
+        -> pre-checks, grounding, reports
+Eval  EvalRunner -> AuditEngine over fixed fixtures
 ```
 
 Details: [docs/architecture.md](docs/architecture.md)
@@ -41,6 +42,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 - C# / .NET 10
 - [Ollama](https://ollama.com/) local HTTP API
 - [Spectre.Console](https://spectreconsole.net/) (Status + streaming)
+- Roslyn (style fixers)
 - xUnit
 - Markdown rule packs (`.mdc`)
 
