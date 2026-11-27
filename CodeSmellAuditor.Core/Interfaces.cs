@@ -10,11 +10,13 @@ public interface IAiOrchestrator
     Task<AuditReport> AnalyzeCodeAsync(
         SourceFile file,
         IEnumerable<AuditRule> rules,
-        Action<string> onTokenReceived);
+        Action<string> onTokenReceived,
+        CancellationToken cancellationToken = default);
 
     Task<AuditReport> AnalyzeSystemAsync(
         IReadOnlyList<SourceFile> files,
         string? manifestText,
         IEnumerable<AuditRule> rules,
-        Action<string> onTokenReceived);
+        Action<string> onTokenReceived,
+        CancellationToken cancellationToken = default);
 }

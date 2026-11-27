@@ -36,9 +36,16 @@ if (cliArgs.Mode == CliMode.Fix)
     return;
 }
 
-string baseStoragePath = ResolveStoragePath(cliArgs.Storage);
-string rulesPath = Path.Combine(baseStoragePath, "Rules");
-string targetsPath = Path.Combine(baseStoragePath, "Targets");
+AppConfiguration appConfig = AppConfiguration.Resolve(
+    cliArgs.Storage,
+    cliArgs.Model,
+    fixModel: null,
+    cliArgs.Stack,
+    Environment.GetEnvironmentVariable,
+    AppContext.BaseDirectory);
+string baseStoragePath = appConfig.StoragePath;
+string rulesPath = appConfig.RulesPath;
+string targetsPath = appConfig.TargetsPath;
 
 if (!Directory.Exists(rulesPath))
 {
@@ -60,51 +67,6 @@ if (cliArgs.Mode == CliMode.Batch && !Directory.Exists(targetsPath))
     return;
 }
 
-static string ResolveStoragePath(string? cliStorage)
-{
-    string? envStorage = Environment.GetEnvironmentVariable("CODESMELL_STORAGE");
-    if (!string.IsNullOrWhiteSpace(envStorage))
-    {
-        return envStorage;
-    }
-
-    if (!string.IsNullOrWhiteSpace(cliStorage))
-    {
-        return Path.GetFullPath(cliStorage);
-    }
-
-    var current = new DirectoryInfo(AppContext.BaseDirectory);
-    while (current is not null)
-    {
-        string candidate = Path.Combine(current.FullName, "WorkstationStorage");
-        if (Directory.Exists(candidate))
-        {
-            return candidate;
-        }
-
-        current = current.Parent;
-    }
-
-    return Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "WorkstationStorage"));
-}
-
-static string ResolveModelName(string? cliModel)
-{
-    string? envModel = Environment.GetEnvironmentVariable("CODESMELL_MODEL");
-    if (!string.IsNullOrWhiteSpace(envModel))
-    {
-        return envModel;
-    }
-
-    if (!string.IsNullOrWhiteSpace(cliModel))
-    {
-        return cliModel;
-    }
-
-    return AuditConfiguration.DefaultModelName;
-}
-
 static void WaitForEnterIfInteractive(CliArgs parsed)
 {
     if (parsed.NonInteractive || parsed.Mode is CliMode.Sniff or CliMode.SniffSystem)
@@ -116,13 +78,9 @@ static void WaitForEnterIfInteractive(CliArgs parsed)
     Console.ReadLine();
 }
 
-string modelName = ResolveModelName(cliArgs.Model);
 AuditConfiguration auditConfig = cliArgs.Mode == CliMode.SniffSystem
-    ? AuditConfiguration.ForSystemAudit(modelName)
-    : new AuditConfiguration(
-        ModelName: modelName,
-        NumCtx: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_CTX"), out int ctx) ? ctx : 8192,
-        NumPredict: int.TryParse(Environment.GetEnvironmentVariable("CODESMELL_NUM_PREDICT"), out int predict) ? predict : 1200);
+    ? appConfig.ForSystemAudit()
+    : appConfig.ForFileAudit();
 
 using var httpClient = new HttpClient
 {
@@ -131,20 +89,20 @@ using var httpClient = new HttpClient
 };
 
 IRuleRepository repository = new MarkdownRuleRepository();
-IAiOrchestrator aiService = new OllamaAiOrchestrator(httpClient, auditConfig);
+IAiOrchestrator aiService = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), auditConfig);
 var engine = new AuditEngine(repository, aiService);
 var host = new CliAuditHost(engine);
 
-if (!string.IsNullOrWhiteSpace(cliArgs.Stack))
+if (!string.IsNullOrWhiteSpace(appConfig.Stack))
 {
-    AnsiConsole.MarkupLine($"[grey]Stack pack:[/] [cyan]{Markup.Escape(cliArgs.Stack)}[/]");
+    AnsiConsole.MarkupLine($"[grey]Stack pack:[/] [cyan]{Markup.Escape(appConfig.Stack)}[/]");
 }
 
 try
 {
     if (cliArgs.Mode == CliMode.Batch)
     {
-        AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath, cliArgs.Stack);
+        AuditRunResult batchResult = await host.RunAsync(rulesPath, targetsPath, appConfig.Stack);
         Environment.ExitCode = batchResult.ExitCode;
         AnsiConsole.MarkupLine(
             batchResult.AllPassed
@@ -160,12 +118,12 @@ try
             rulesPath,
             cliArgs.SniffPaths,
             cliArgs.Manifest,
-            cliArgs.Stack);
+            appConfig.Stack);
         Environment.ExitCode = systemResult.ExitCode;
         return;
     }
 
-    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths, cliArgs.Stack);
+    AuditRunResult sniffResult = await host.RunSniffAsync(rulesPath, cliArgs.SniffPaths, appConfig.Stack);
     Environment.ExitCode = sniffResult.ExitCode;
 }
 catch (Exception ex) when (ex is FileNotFoundException or ArgumentException or DirectoryNotFoundException or InvalidOperationException)

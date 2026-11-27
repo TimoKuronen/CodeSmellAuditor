@@ -44,9 +44,9 @@ public sealed class ResultRow
     public double OutputTokens { get; set; }
     public int MinHeadroomTokens { get; set; }
 
-    public double ClaudeSummarizeTokens { get; set; }
-    public double ClaudeSidecarTokens { get; set; }
-    public double ClaudeVerifyTokens { get; set; }
+    public double ReadReportTokens { get; set; }
+    public double ReadSidecarTokens { get; set; }
+    public double ReadVerifyTokens { get; set; }
 
     public double ModelHits => ModelBlatant + ModelJudgment;
 }

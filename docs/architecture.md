@@ -2,21 +2,34 @@
 
 ## Overview
 
-CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider. Cli owns interactive presentation; Core owns rule loading, single-file and multi-file (system) audits, and report persistence.
+CodeSmellAuditor follows a simple layered design with explicit interfaces so the audit engine stays independent of rule storage format and AI provider. Cli owns interactive presentation; Core owns configuration, rule loading, pre-checks, single-file and multi-file (system) audits, and report persistence; Fix owns the model-free style fixes; Eval scores audits against fixed answer keys.
 
 ```mermaid
 flowchart TB
     subgraph cli [CodeSmellAuditor.Cli]
         Program[Program.cs composition root]
         Host[CliAuditHost]
+        FixHost[CliFixHost]
     end
 
     subgraph core [CodeSmellAuditor.Core]
+        Config[AppConfiguration]
         Engine[AuditEngine]
         Rules[IRuleRepository]
         AI[IAiOrchestrator]
+        Chat[OllamaChatClient]
         PromptBuilder[AuditPromptBuilder]
-        Models[Domain models]
+        PreChecks[SourcePreChecks]
+    end
+
+    subgraph fix [CodeSmellAuditor.Fix]
+        FixEngine[FixEngine]
+        Fixers[IStyleFixer]
+        Applier[FixApplier]
+    end
+
+    subgraph eval [CodeSmellAuditor.Eval]
+        Runner[EvalRunner]
     end
 
     subgraph storage [WorkstationStorage]
@@ -33,23 +46,33 @@ flowchart TB
     Program --> Engine
     Program --> Rules
     Program --> AI
+    Program --> Config
+    Program --> FixHost
     Host --> Engine
     Engine --> Rules
     Engine --> AI
+    Engine --> PreChecks
     AI --> PromptBuilder
+    AI --> Chat
+    FixHost --> FixEngine
+    FixHost --> Applier
+    FixEngine --> Fixers
+    Runner --> Engine
     Rules --> RulesFolder
     Host --> TargetsFolder
     Engine --> ReportsFolder
-    AI --> Ollama
+    Chat --> Ollama
 ```
 
 ## Projects
 
 | Project | Responsibility |
 |---------|---------------|
-| CodeSmellAuditor.Cli | Composition root, `CliAuditHost` batch UX (Spectre Status + streaming), path configuration |
-| CodeSmellAuditor.Core | `AuditEngine` file-level audit API, interfaces, Ollama HTTP streaming, prompt budgeting |
+| CodeSmellAuditor.Cli | Composition root, `CliAuditHost` audit UX (Spectre Status + streaming), `CliFixHost` fix UX |
+| CodeSmellAuditor.Core | `AuditEngine` file-level audit API, interfaces, application configuration, Ollama HTTP client, prompt budgeting |
 | CodeSmellAuditor.Fix | Roslyn-based style fixers, `FixEngine` planning and validation, `FixApplier` file writes, line diff |
+| CodeSmellAuditor.Eval | Benchmark runner, answer-key scoring, results table |
+| CodeSmellAuditor.Core.Tests | xUnit tests for Core, Cli argument parsing, Fix, and Eval, using fakes in place of Ollama |
 
 ## Key types
 
@@ -59,7 +82,15 @@ Loads active governance rules from a folder. `MarkdownRuleRepository` reads `.md
 
 ### IAiOrchestrator
 
-Sends source code and rules to an AI backend and returns an `AuditReport` with an `AuditOutcome` (`Passed`, `ReviewRequired`, or `Failed`). Supports single-file `AnalyzeCodeAsync` and multi-file `AnalyzeSystemAsync`. `OllamaAiOrchestrator` takes an injected `HttpClient` (bound at the composition root) and streams tokens from Ollama `/api/chat` with bounded output templates. Transport, empty-response, and budget failures map to `Failed` and are not persisted as critiques.
+Sends source code and rules to an AI backend and returns an `AuditReport` with an `AuditOutcome` (`Passed`, `ReviewRequired`, or `Failed`). Supports single-file `AnalyzeCodeAsync` and multi-file `AnalyzeSystemAsync`. `OllamaAiOrchestrator` builds the prompts, streams tokens through an injected `OllamaChatClient`, and uses bounded output templates. Transport, empty-response, and budget failures map to `Failed` and are not persisted as critiques. Both methods accept a `CancellationToken`; a cancelled audit throws `OperationCanceledException` and writes no report.
+
+### OllamaChatClient
+
+Calls Ollama `/api/chat` over an injected `HttpClient` (bound at the composition root) with thinking disabled. It offers a streaming and a single-response call, and returns the content, the error text Ollama reports, whether the output limit ended the reply (`done_reason`), and the token counts. HTTP failures surface as exceptions.
+
+### AppConfiguration
+
+Resolves the storage path, audit model, fix model, context limits, and stack for a host. Environment variables win over caller-supplied values. The fix model defaults to the audit model, and the storage path defaults to the nearest `WorkstationStorage` folder above the executable.
 
 ### AuditPromptBuilder
 
@@ -112,13 +143,17 @@ Assembles architecture-mode system/user prompts (manifest + multi-file sources) 
 
 ### CliAuditHost
 
-Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path. `RunSniffSystemAsync` uses one Status wrap for the whole combined call.
+Owns the batch and sniff loops. For each target it wraps `AuditFileAsync` in `AnsiConsole.Status()` so the spinner covers time-to-first-token, then streams tokens and prints the saved report path. `RunSniffSystemAsync` uses one Status wrap for the whole combined call.
+
+### CliFixHost
+
+Expands the `fix` paths through `SourceFileEnumerator` (folders are scanned recursively, skipping build, package, and IDE folders and generated files), plans with `FixEngine`, and prints the diff, the skipped violations, and the rejected files. It offers to apply all changes, review file by file, or cancel, and writes the chosen files through `FixApplier`.
 
 ## Design decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| Interfaces for rules and AI | Swap rule packs or cloud API without changing engine |
+| Interfaces for rules and AI | Swap the rule source or AI backend without changing the engine; tests use fakes |
 | Cli owns Status wrapping | Spectre Status must wrap the await; presentation stays out of Core |
 | File-level Core API | Keeps Core modular; Cli drives one or more files via sniff while Core stays per-file; sniff-system is an explicit multi-file sibling API |
 | Streaming token callback | Immediate feedback without Core knowing about the console |
@@ -127,16 +162,17 @@ Owns the interactive batch loop. For each target it wraps `AuditFileAsync` in `A
 | Stack packs under `Rules/Stacks/<name>/` | Stacks such as Unity are opt-in via `--stack`; default packs stay stack-agnostic |
 | Bounded report template | Prevents reasoning models from consuming output budget |
 | Status line parsing | Deterministic pass/fail from `Status:` line |
-| Exact rules in code, not in the model | Rules decidable from text (type count, file name, WIP markers, dead comments) are checked deterministically, so a small model cannot miss them and they cost no model calls |
+| Exact rules in code, not in the model | Rules decidable from text (see Pre-checks) are checked deterministically, so a small model cannot miss them and they cost no model calls |
 | Grounding in code, not in the model | Small local models invent or misplace findings; verifying quotes against the source is exact and costs no model calls |
 | Score is informational | Model-emitted qualitative signal; not used for exit codes or regression |
-| Env vars for storage, model, and context config | Portable across machines; `CODESMELL_NUM_CTX` and `CODESMELL_NUM_PREDICT` apply to batch and sniff, while sniff-system uses its fixed larger budget |
+| Env vars for storage, model, and context config | Portable across machines; `CODESMELL_FIX_MODEL` names the fix model; `CODESMELL_NUM_CTX` and `CODESMELL_NUM_PREDICT` apply to batch and sniff, while sniff-system uses its fixed larger budget |
 
 ## Dependency direction
 
 ```
-Cli -> Core -> (filesystem, HttpClient)
-Cli -> Fix  -> (Roslyn, filesystem)
+Cli  -> Core -> (filesystem, HttpClient)
+Cli  -> Fix  -> (Roslyn, filesystem)
+Eval -> Core
 ```
 
 Core does not reference Cli or Fix; Fix does not reference Core. AI calls and rule loading are behind interfaces. `AuditEngine` reads source files and writes reports directly through `System.IO`.
@@ -148,7 +184,7 @@ Core does not reference Cli or Fix; Fix does not reference Core. AI calls and ru
 | Batch | no args | `WorkstationStorage/Targets/*.cs` | Summary; exit `0`/`1`/`2`; Enter-to-exit unless `--non-interactive` |
 | Sniff | `sniff path\to\File.cs [more.cs...]` | one or more external paths in place | no Enter wait; exit `0`/`1`/`2` from aggregate outcome |
 | Sniff-system | `sniff-system path\to\A.cs path\to\B.cs [...]` | two or more external paths; optional `--manifest` | one combined architecture report; no Enter wait; exit `0`/`1`/`2` |
-| Fix | `fix path\to\Folder-or-File.cs [...]` | files and folders, scanned recursively; no rules folder or Ollama needed | diff preview, then one confirmation; `--yes` writes without asking, `--dry-run` and `--non-interactive` never write |
+| Fix | `fix path\to\Folder-or-File.cs [...]` | files and folders, scanned recursively; no rules folder or Ollama needed | diff preview, then apply all, review file by file, or cancel; `--yes` writes without asking, `--dry-run` never writes, `--non-interactive` writes only with `--yes` |
 
 ### Shared options
 
@@ -193,4 +229,4 @@ Batch and sniff reuse `CliAuditHost` Status wrapping and `AuditEngine.AuditFileA
 
 Each fixture is audited through `AuditEngine` and read back from its summary sidecar. A grounded finding hits an item when its evidence line lies within the item's range (plus a two-line tolerance, with the line re-derived from where the evidence appears in the source) and its text matches a pattern; each finding satisfies at most one item. Grounded findings that satisfy none are noise, and any finding on the clean control is a false positive. Pre-check hits are counted separately from model hits.
 
-A run repeats the corpus several times and records the mean and min-max spread per metric as one row of an append-only CSV, with the git sha and content hashes of the corpus, prompt, rule packs, and Core sources. A regenerated markdown table compares each row with the previous row of the same model and marks changes inside the repeat spread. Claude reading cost is estimated from the size of the report, the sidecar, and the source for each sniff mode.
+A run repeats the corpus several times and records the mean and min-max spread per metric as one row of an append-only CSV, with the git sha and content hashes of the corpus, prompt, rule packs, and Core sources. A regenerated markdown table compares each row with the previous row of the same model and marks changes inside the repeat spread. The results and raw reports live under `eval/results/`, outside version control. The token cost of reading the output is estimated from text size in three variants: the report, the sidecar alone, and the report with the source.

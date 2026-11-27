@@ -47,9 +47,9 @@ public static class ResultsCsv
         Number("PromptTokens", r => r.PromptTokens, (r, v) => r.PromptTokens = v),
         Number("OutputTokens", r => r.OutputTokens, (r, v) => r.OutputTokens = v),
         Whole("MinHeadroomTokens", r => r.MinHeadroomTokens, (r, v) => r.MinHeadroomTokens = v),
-        Number("ClaudeSummarizeTokens", r => r.ClaudeSummarizeTokens, (r, v) => r.ClaudeSummarizeTokens = v),
-        Number("ClaudeSidecarTokens", r => r.ClaudeSidecarTokens, (r, v) => r.ClaudeSidecarTokens = v),
-        Number("ClaudeVerifyTokens", r => r.ClaudeVerifyTokens, (r, v) => r.ClaudeVerifyTokens = v)
+        Number("ReadReportTokens", r => r.ReadReportTokens, (r, v) => r.ReadReportTokens = v),
+        Number("ReadSidecarTokens", r => r.ReadSidecarTokens, (r, v) => r.ReadSidecarTokens = v),
+        Number("ReadVerifyTokens", r => r.ReadVerifyTokens, (r, v) => r.ReadVerifyTokens = v)
     ];
 
     public static string Header => string.Join(',', Columns.Select(c => c.Name));

@@ -10,6 +10,7 @@ public class OllamaAiOrchestratorTests
     private static readonly SourceFile SampleFile = new("Sample.cs", "public class Sample { }");
     private static readonly IReadOnlyList<AuditRule> SampleRules =
         new[] { new AuditRule("rule.mdc", "Prefer interfaces.") };
+    private static readonly OllamaChatPrompt SamplePrompt = new("model", "system", "user", 8192, 100, 0);
 
     [Fact]
     public async Task AnalyzeCodeAsync_StreamsContentAndParsesCompliantStatus()
@@ -19,7 +20,7 @@ public class OllamaAiOrchestratorTests
             """{"message":{"content":"COMPLIANT\nScore: 90"}}""" + "\n";
 
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         var tokens = new StringBuilder();
         AuditReport report = await orchestrator.AnalyzeCodeAsync(
@@ -45,7 +46,7 @@ public class OllamaAiOrchestratorTests
             "{\"message\":{\"content\":\"\"},\"done\":true,\"done_reason\":\"" + doneReason + "\"}\n";
 
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
 
@@ -62,7 +63,7 @@ public class OllamaAiOrchestratorTests
 
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
         var config = new AuditConfiguration();
-        var orchestrator = new OllamaAiOrchestrator(httpClient, config);
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), config);
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
 
@@ -78,7 +79,7 @@ public class OllamaAiOrchestratorTests
     {
         string streamBody = """{"message":{"content":"Status: COMPLIANT"}}""" + "\n";
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(SampleFile, SampleRules, _ => { });
 
@@ -89,7 +90,7 @@ public class OllamaAiOrchestratorTests
     public async Task AnalyzeCodeAsync_EmptyBody_ReturnsFailed()
     {
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, "\n"));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(
             SampleFile,
@@ -104,7 +105,7 @@ public class OllamaAiOrchestratorTests
     public async Task AnalyzeCodeAsync_HttpFailure_ReturnsFailed()
     {
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.BadGateway, "bad gateway"));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(
             SampleFile,
@@ -120,7 +121,7 @@ public class OllamaAiOrchestratorTests
     {
         string streamBody = """{"error":"model not found"}""" + "\n";
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, new AuditConfiguration());
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(
             SampleFile,
@@ -136,7 +137,7 @@ public class OllamaAiOrchestratorTests
     {
         var config = new AuditConfiguration(MaxInputCharacters: 10);
         using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, "{}"));
-        var orchestrator = new OllamaAiOrchestrator(httpClient, config);
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), config);
 
         AuditReport report = await orchestrator.AnalyzeCodeAsync(
             SampleFile,
@@ -145,6 +146,61 @@ public class OllamaAiOrchestratorTests
 
         Assert.Equal(AuditOutcome.Failed, report.Outcome);
         Assert.Contains("Budget Exceeded", report.MarkdownCritique);
+    }
+
+    [Fact]
+    public async Task AnalyzeCodeAsync_CancelledDuringStream_Throws()
+    {
+        string streamBody =
+            """{"message":{"content":"Status: "}}""" + "\n" +
+            """{"message":{"content":"COMPLIANT"}}""" + "\n";
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, streamBody));
+        var orchestrator = new OllamaAiOrchestrator(new OllamaChatClient(httpClient), new AuditConfiguration());
+        using var cancellation = new CancellationTokenSource();
+        var tokens = new List<string>();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => orchestrator.AnalyzeCodeAsync(
+            SampleFile,
+            SampleRules,
+            token =>
+            {
+                tokens.Add(token);
+                cancellation.Cancel();
+            },
+            cancellation.Token));
+
+        Assert.Equal(new[] { "Status: " }, tokens);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ReadsSingleResponse()
+    {
+        string body =
+            """{"message":{"content":"done"},"done":true,"done_reason":"length","prompt_eval_count":12,"eval_count":3}""";
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, body));
+
+        OllamaChatReply reply = await new OllamaChatClient(httpClient).CompleteAsync(SamplePrompt);
+
+        Assert.Equal(new OllamaChatReply("done", Truncated: true, PromptTokens: 12, OutputTokens: 3), reply);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_OllamaError_ReturnsErrorText()
+    {
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.OK, """{"error":"model not found"}"""));
+
+        OllamaChatReply reply = await new OllamaChatClient(httpClient).CompleteAsync(SamplePrompt);
+
+        Assert.Equal("model not found", reply.Error);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_HttpFailure_Throws()
+    {
+        using var httpClient = CreateClient(new FakeHandler(HttpStatusCode.BadGateway, "bad gateway"));
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => new OllamaChatClient(httpClient).CompleteAsync(SamplePrompt));
     }
 
     private static HttpClient CreateClient(HttpMessageHandler handler)

@@ -186,7 +186,8 @@ public class AuditEngine
         IReadOnlyList<AuditRule> rules,
         string reportsDirectoryPath,
         Action<string>? onTokenReceived = null,
-        string? stackName = null)
+        string? stackName = null,
+        CancellationToken cancellationToken = default)
     {
         string absolutePath = Path.GetFullPath(filePath);
         if (!File.Exists(absolutePath))
@@ -200,13 +201,15 @@ public class AuditEngine
         }
 
         string fileName = Path.GetFileName(absolutePath);
-        string sourceCodeText = await File.ReadAllTextAsync(absolutePath);
+        string sourceCodeText = await File.ReadAllTextAsync(absolutePath, cancellationToken);
         SourceFile currentTarget = new(absolutePath, sourceCodeText);
 
         AuditReport auditReport = await _aiService.AnalyzeCodeAsync(
             currentTarget,
             rules,
-            token => onTokenReceived?.Invoke(token));
+            token => onTokenReceived?.Invoke(token),
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         return await ToFileAuditResultAsync(
             fileName,
@@ -223,7 +226,8 @@ public class AuditEngine
         string? manifestText,
         IReadOnlyList<AuditRule> rules,
         string reportsDirectoryPath,
-        Action<string>? onTokenReceived = null)
+        Action<string>? onTokenReceived = null,
+        CancellationToken cancellationToken = default)
     {
         IReadOnlyList<string> absolutePaths = ResolveExistingCsPaths(
             filePaths,
@@ -235,7 +239,7 @@ public class AuditEngine
 
         foreach (string absolutePath in absolutePaths)
         {
-            string content = await File.ReadAllTextAsync(absolutePath);
+            string content = await File.ReadAllTextAsync(absolutePath, cancellationToken);
             sources.Add(new SourceFile(absolutePath, content));
             fileNames.Add(Path.GetFileName(absolutePath));
         }
@@ -244,7 +248,9 @@ public class AuditEngine
             sources,
             manifestText,
             rules,
-            token => onTokenReceived?.Invoke(token));
+            token => onTokenReceived?.Invoke(token),
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         string targetLabel = string.Join(", ", fileNames);
         return await ToFileAuditResultAsync(

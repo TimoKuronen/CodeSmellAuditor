@@ -32,3 +32,6 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+
+## Benchmark output
+eval/results/

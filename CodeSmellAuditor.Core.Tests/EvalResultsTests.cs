@@ -40,7 +40,7 @@ public class EvalResultsTests
     }
 
     [Fact]
-    public void AggregateSumsTokensPerPassAndComputesClaudeModes()
+    public void AggregateSumsTokensPerPassAndComputesReadingCosts()
     {
         IReadOnlyList<IReadOnlyList<FixtureRunResult>> repeats = [[Run(Score(1, 0, 0)), Run(Score(1, 0, 0))]];
 
@@ -48,9 +48,9 @@ public class EvalResultsTests
 
         Assert.Equal(2000, row.PromptTokens);
         Assert.Equal(400, row.OutputTokens);
-        Assert.Equal(1400, row.ClaudeSummarizeTokens);
-        Assert.Equal(700, row.ClaudeSidecarTokens);
-        Assert.Equal(2200, row.ClaudeVerifyTokens);
+        Assert.Equal(1400, row.ReadReportTokens);
+        Assert.Equal(700, row.ReadSidecarTokens);
+        Assert.Equal(2200, row.ReadVerifyTokens);
         Assert.Equal(5000, row.MinHeadroomTokens);
     }
 
@@ -81,7 +81,7 @@ public class EvalResultsTests
         Assert.Equal(ResultsCsv.ToLine(row), ResultsCsv.ToLine(parsed));
         Assert.Equal(row.RunId, parsed.RunId);
         Assert.Equal(row.CombinedBlatant, parsed.CombinedBlatant);
-        Assert.Equal(row.ClaudeVerifyTokens, parsed.ClaudeVerifyTokens);
+        Assert.Equal(row.ReadVerifyTokens, parsed.ReadVerifyTokens);
     }
 
     [Fact]
@@ -186,9 +186,9 @@ public class EvalResultsTests
     [InlineData("a", 1)]
     [InlineData("1234567", 2)]
     [InlineData("12345678", 3)]
-    public void ClaudeTokenEstimateRoundsUpAtThreePointFiveCharsPerToken(string text, int expected)
+    public void ReviewTokenEstimateRoundsUpAtThreePointFiveCharsPerToken(string text, int expected)
     {
-        Assert.Equal(expected, ClaudeTokenEstimator.Estimate(text));
+        Assert.Equal(expected, ReviewTokenEstimator.Estimate(text));
     }
 
     [Fact]
